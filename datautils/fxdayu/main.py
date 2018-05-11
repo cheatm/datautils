@@ -7,9 +7,11 @@ class DataAPI(DataAPIBase):
 
     def __init__(self, client):
         self.client = client
-        for name, col in conf.COLS.items():
+        for name in conf.COLS:
+            col = getattr(conf, name)
             self.__setattr__(name.lower(), ColReader(self._gen_col(col)))
-        for name, db in conf.DBS.items():
+        for name in conf.DBS:
+            db = getattr(conf, name)
             self.__setattr__(name.lower(), DBReader(self._gen_db(db)))
 
     def _gen_col(self, string):
@@ -25,4 +27,3 @@ class DataAPI(DataAPIBase):
 
         client = MongoClient(conf.MONGODB_URI)
         return cls(client)
-

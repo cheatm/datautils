@@ -13,8 +13,8 @@ class ColReader(SingleReader):
     def __call__(self, *args, **kwargs):
         return self.read(*args, **kwargs)
 
-    def read(self, index=None, fields=None, **filters):
-        return read(self.collection, index, fields, **filters)
+    def read(self, index=None, fields=None, hint=None, **filters):
+        return read(self.collection, index, fields, hint, **filters)
 
 
 class IndexColReader(ColReader):
@@ -34,22 +34,19 @@ class DBReader(MultiReader):
         self.db = db
 
     def __call__(self, *args, **kwargs):
-        return self.read(*args, **kwargs)
+        return dict(self.iter_read(*args, **kwargs))
 
     def read(self, names, index=None, fields=None, **filters):
+        return dict(self.iter_read(names, index, fields, **filters))
+
+    def iter_read(self, names, index=None, fields=None, **filters):
         filters = parser(**filters)
         prj = projection(index, fields)
-        if isinstance(names, six.string_types):
-            names = names.split(",")
-        return dict(self.iter_read(names, index, filters, prj))
-
-    def iter_read(self, names, index, filters, prj):
         for name in names:
             try:
                 yield name, self._read(name, index, filters, prj)
             except Exception as e:
                 logging.error("%s | %s | %s | %s | %s", name, index, filters, prj, e)
-
 
     def _read(self, name, index, filters, prj):
         cursor = self.db[name].find(filters, prj)

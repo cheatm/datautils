@@ -27,10 +27,41 @@ SEC_INDUSTRY = os.environ.get("SEC_INDUSTRY", "lb.secIndustry")
 SEC_RESTRICTED = os.environ.get("SEC_RESTRICTED", "lb.secRestricted")
 SEC_SUSP = os.environ.get("SEC_SUSP", "lb.secSusp")
 WIND_FINANCE = os.environ.get("WIND_FINANCE", "lb.windFinance")
+SEC_ADJ_FACTOR = os.environ.get("SEC_ADJ_FACTOR", "lb.secAdjFactor")
+
+DBS = ("STOCK_1M", "STOCK_D", "STOCK_H", "FACTOR", "DAILY_INDICATOR")
+COLS = ("API_LIST", "API_PARAM", "INST_INFO", "TRADE_CAL", "BALANCE_SHEET", "CASH_FLOW", "FIN_INDICATOR", "INCOME",
+        "INDEX_CONS", "INDEX_WEIGHT_RANGE", "PROFIT_EXPRESS", "S_STATE", "SEC_DIVIDEND", "SEC_INDUSTRY", "SEC_SUSP",
+        "SEC_RESTRICTED", "WIND_FINANCE", "SEC_ADJ_FACTOR")
 
 
-DBS = {name: globals()[name] for name in ["STOCK_1M", "STOCK_D", "STOCK_H", "FACTOR", "DAILY_INDICATOR"]}
-COLS = {name: globals()[name] for name in ["API_LIST", "API_PARAM", "INST_INFO", "TRADE_CAL", "BALANCE_SHEET",
-                                           "CASH_FLOW", "FIN_INDICATOR", "INCOME", "INDEX_CONS", "INDEX_WEIGHT_RANGE",
-                                           "PROFIT_EXPRESS", "S_STATE", "SEC_DIVIDEND", "SEC_INDUSTRY",
-                                           "SEC_RESTRICTED", "SEC_SUSP", "WIND_FINANCE"]}
+VIEW_KEY_MAP = {'help.apiList': 'API_LIST',
+                'help.apiParam': 'API_PARAM',
+                'jz.instrumentInfo': 'INST_INFO',
+                'jz.secTradeCal': 'TRADE_CAL',
+                'lb.balanceSheet': 'BALANCE_SHEET',
+                'lb.cashFlow': 'CASH_FLOW',
+                'lb.finIndicator': 'FIN_INDICATOR',
+                'lb.income': 'INCOME',
+                'lb.indexCons': 'INDEX_CONS',
+                'lb.indexWeightRange': 'INDEX_WEIGHT_RANGE',
+                'lb.profitExpress': 'PROFIT_EXPRESS',
+                'lb.sState': 'S_STATE',
+                'lb.secDividend': 'SEC_DIVIDEND',
+                'lb.secIndustry': 'SEC_INDUSTRY',
+                'lb.secRestricted': 'SEC_RESTRICTED',
+                'lb.secSusp': 'SEC_SUSP',
+                'lb.windFinance': 'WIND_FINANCE',
+                'Stock_1M': 'STOCK_1M',
+                'Stock_D': 'STOCK_D',
+                'Stock_H': 'STOCK_H',
+                'factor': 'FACTOR',
+                'lb.secDailyIndicator': 'DAILY_INDICATOR'}
+
+
+def variables():
+    dct = {}
+    dct.update({name: str(globals()[name]) for name in DBS})
+    dct.update({name: str(globals()[name]) for name in COLS})
+    dct["MONGODB_URI"] = MONGODB_URI
+    return dct

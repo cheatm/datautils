@@ -59,12 +59,15 @@ WRITE_METHODS = {"insert": insert,
 def parser(**filters):
     dct = {}
     for key, value in filters.items():
-        if isinstance(value, tuple):
-            dct[key] = parse_range(*value)
-        elif isinstance(value, list):
-            dct[key] = {"$in": list(value)}
-        else:
+        if "$" in key:
             dct[key] = value
+        else:
+            if isinstance(value, tuple):
+                dct[key] = parse_range(*value)
+            elif isinstance(value, (list, set)):
+                dct[key] = {"$in": list(value)}
+            else:
+                dct[key] = value
     return dct
 
 
@@ -96,10 +99,13 @@ def projection(index=None, fields=None):
     return prj
 
 
-def read(collection, index=None, fields=None, **filters):
+def read(collection, index=None, fields=None, hint=None, **filters):
     filters = parser(**filters)
     prj = projection(index, fields)
-    data = pd.DataFrame(list(collection.find(filters, prj)))
+    cursor = collection.find(filters, prj)
+    if hint is not None:
+        cursor.hint(hint)
+    data = pd.DataFrame(list(cursor))
     if index:
         return data.set_index(index)
     else:

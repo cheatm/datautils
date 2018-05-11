@@ -37,4 +37,5 @@ class DataAPIBase(object):
     sec_restricted = SingleReader()
     sec_susp = SingleReader()
     wind_finance = SingleReader()
+    sec_adj_factor = SingleReader()
 
