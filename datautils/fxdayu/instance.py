@@ -12,3 +12,4 @@ def init(uri=None):
         globals()["api"] = DataAPI(client)
     else:
         globals()["api"] = DataAPI.conf()
+

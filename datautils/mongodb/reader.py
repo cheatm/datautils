@@ -2,7 +2,6 @@ from datautils.mongodb import read, parser, projection, parse_range, read_chunk
 from datautils.fxdayu.basic import SingleReader, MultiReader
 import logging
 import pandas as pd
-import six
 
 
 class ColReader(SingleReader):
@@ -82,12 +81,3 @@ class ChunkDBReader(DBReader):
     def _read(self, name, index, filters, prj):
         return read_chunk(self.db[name], filters, prj, index)
 
-
-
-if __name__ == '__main__':
-    from datetime import datetime
-    from pymongo import MongoClient
-    client = MongoClient("192.168.0.102")
-    reader = MultiDBReader([client["factors"], client["fxdayu_factors"]])
-    data = reader(["A020006A", "PB"], "datetime", fields=["000001", "000002"], datetime=(datetime(2016, 1, 1),))
-    print(pd.Panel.from_dict(data).to_frame(False))
