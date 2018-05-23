@@ -7,6 +7,7 @@ STOCK_H = os.environ.get('STOCK_H', "Stock_H")
 STOCK_1M = os.environ.get("STOCK_1M", "Stock_1M")
 
 FACTOR = os.environ.get("FACTOR", "factors")
+FXDAYU_FACTOR = os.environ.get("FXDAYU_FACTOR", "fxdayu_factors")
 DAILY_INDICATOR = os.environ.get("DAILY_INDICATOR", "SecDailyIndicator")
 
 API_LIST = os.environ.get("API_LIST", "jz.apiList")
@@ -29,40 +30,13 @@ SEC_SUSP = os.environ.get("SEC_SUSP", "lb.secSusp")
 WIND_FINANCE = os.environ.get("WIND_FINANCE", "lb.windFinance")
 SEC_ADJ_FACTOR = os.environ.get("SEC_ADJ_FACTOR", "lb.secAdjFactor")
 
-DBS = ("STOCK_D", "STOCK_H", "FACTOR", "DAILY_INDICATOR")
-CHUNKS = ("STOCK_1M",)
-COLS = ("API_LIST", "API_PARAM", "INST_INFO", "TRADE_CAL", "BALANCE_SHEET", "CASH_FLOW", "FIN_INDICATOR", "INCOME",
-        "INDEX_CONS", "INDEX_WEIGHT_RANGE", "PROFIT_EXPRESS", "S_STATE", "SEC_DIVIDEND", "SEC_INDUSTRY", "SEC_SUSP",
-        "SEC_RESTRICTED", "WIND_FINANCE", "SEC_ADJ_FACTOR")
-
-
-VIEW_KEY_MAP = {'help.apiList': 'API_LIST',
-                'help.apiParam': 'API_PARAM',
-                'jz.instrumentInfo': 'INST_INFO',
-                'jz.secTradeCal': 'TRADE_CAL',
-                'lb.balanceSheet': 'BALANCE_SHEET',
-                'lb.cashFlow': 'CASH_FLOW',
-                'lb.finIndicator': 'FIN_INDICATOR',
-                'lb.income': 'INCOME',
-                'lb.indexCons': 'INDEX_CONS',
-                'lb.indexWeightRange': 'INDEX_WEIGHT_RANGE',
-                'lb.profitExpress': 'PROFIT_EXPRESS',
-                'lb.sState': 'S_STATE',
-                'lb.secDividend': 'SEC_DIVIDEND',
-                'lb.secIndustry': 'SEC_INDUSTRY',
-                'lb.secRestricted': 'SEC_RESTRICTED',
-                'lb.secSusp': 'SEC_SUSP',
-                'lb.windFinance': 'WIND_FINANCE',
-                'Stock_1M': 'STOCK_1M',
-                'Stock_D': 'STOCK_D',
-                'Stock_H': 'STOCK_H',
-                'factor': 'FACTOR',
-                'lb.secDailyIndicator': 'DAILY_INDICATOR'}
+VARIABLES = (
+    "STOCK_D", "STOCK_H", "FACTOR", "DAILY_INDICATOR", "STOCK_1M", "API_LIST", "API_PARAM", "INST_INFO", "TRADE_CAL",
+    "BALANCE_SHEET", "CASH_FLOW", "FIN_INDICATOR", "INCOME", "INDEX_CONS", "INDEX_WEIGHT_RANGE", "PROFIT_EXPRESS",
+    "S_STATE", "SEC_DIVIDEND", "SEC_INDUSTRY", "SEC_SUSP", "SEC_RESTRICTED", "WIND_FINANCE", "SEC_ADJ_FACTOR",
+    "FXDAYU_FACTOR", "MONGODB_URI"
+)
 
 
 def variables():
-    dct = {}
-    dct.update({name: str(globals()[name]) for name in DBS})
-    dct.update({name: str(globals()[name]) for name in COLS})
-    dct["MONGODB_URI"] = MONGODB_URI
-    return dct
+    return {name: str(globals()[name]) for name in VARIABLES}

@@ -27,7 +27,7 @@ class DataAPI(DataAPIBase):
         for name, cls in DAXIS.items():
             db = getattr(conf, name)
             self.__setattr__(name.lower(), cls(DBReader(self._gen_db(db))))
-        self.__setattr__("factor", FactorReader(TempDBReader([self._gen_db("factors"), self._gen_db("fxdayu_factors")])))
+        # self.__setattr__("factor", FactorReader(TempDBReader([self._gen_db("factors"), self._gen_db("fxdayu_factors")])))
 
     def _gen_col(self, string):
         db, col = string.split(".", 1)
@@ -157,6 +157,7 @@ class TempDBReader(MultiDBReader):
 
 
 DAXIS = {
-    # "FACTOR": FactorReader,
+    "FACTOR": FactorReader,
+    "FXDAYU_FACTOR": FactorReader,
     "DAILY_INDICATOR": SDIReader
 }

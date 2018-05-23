@@ -12,8 +12,3 @@ def init(uri=None):
         globals()["api"] = DataAPI(client)
     else:
         globals()["api"] = DataAPI.conf()
-
-if __name__ == '__main__':
-    init("192.168.0.102")
-
-    print(api.add_fields("factor", "fxdayu_factors"))
