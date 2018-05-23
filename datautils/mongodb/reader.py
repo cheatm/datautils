@@ -1,4 +1,4 @@
-from datautils.mongodb import read, parser, projection, parse_range
+from datautils.mongodb import read, parser, projection, parse_range, read_chunk
 from datautils.fxdayu.basic import SingleReader, MultiReader
 import logging
 import pandas as pd
@@ -33,8 +33,8 @@ class DBReader(MultiReader):
     def __init__(self, db):
         self.db = db
 
-    def __call__(self, *args, **kwargs):
-        return dict(self.iter_read(*args, **kwargs))
+    def __call__(self, names, index=None, fields=None, **filters):
+        return dict(self.iter_read(names, index, fields, **filters))
 
     def read(self, names, index=None, fields=None, **filters):
         return dict(self.iter_read(names, index, fields, **filters))
@@ -44,14 +44,50 @@ class DBReader(MultiReader):
         prj = projection(index, fields)
         for name in names:
             try:
-                yield name, self._read(name, index, filters, prj)
+                yield name, self._read(self.get_col(name), index, filters, prj)
             except Exception as e:
                 logging.error("%s | %s | %s | %s | %s", name, index, filters, prj, e)
 
-    def _read(self, name, index, filters, prj):
-        cursor = self.db[name].find(filters, prj)
+    def get_col(self, name):
+        return self.db[name]
+
+    def _read(self, collection, index, filters, prj):
+        cursor = collection.find(filters, prj)
         data = pd.DataFrame(list(cursor))
         if index is not None:
-            return data.set_index(index)
+            if index in data.columns:
+                return data.set_index(index)
+            else:
+                data.index.name = index
+                return data
         else:
             return data
+
+
+class MultiDBReader(DBReader):
+
+    def __init__(self, dbs):
+        super(MultiDBReader, self).__init__(dbs)
+        self.dbs = {db.name: db for db in dbs}
+        self.col_map = {}
+        for db in self.db:
+            self.col_map.update(dict.fromkeys(db.collection_names(), db))
+
+    def get_col(self, name):
+        return self.col_map[name][name]
+
+
+class ChunkDBReader(DBReader):
+
+    def _read(self, name, index, filters, prj):
+        return read_chunk(self.db[name], filters, prj, index)
+
+
+
+if __name__ == '__main__':
+    from datetime import datetime
+    from pymongo import MongoClient
+    client = MongoClient("192.168.0.102")
+    reader = MultiDBReader([client["factors"], client["fxdayu_factors"]])
+    data = reader(["A020006A", "PB"], "datetime", fields=["000001", "000002"], datetime=(datetime(2016, 1, 1),))
+    print(pd.Panel.from_dict(data).to_frame(False))

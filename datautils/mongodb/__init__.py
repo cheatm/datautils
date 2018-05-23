@@ -63,7 +63,9 @@ def parser(**filters):
             dct[key] = value
         else:
             if isinstance(value, tuple):
-                dct[key] = parse_range(*value)
+                r = parse_range(*value)
+                if len(r):
+                    dct[key] = r
             elif isinstance(value, (list, set)):
                 dct[key] = {"$in": list(value)}
             else:
@@ -110,3 +112,47 @@ def read(collection, index=None, fields=None, hint=None, **filters):
         return data.set_index(index)
     else:
         return data
+
+
+def make_chunk(data, params):
+    length = len(data.index)
+    dct = data.to_dict("list")
+    dct["_l"] = length
+    dct.update(params)
+    return dct
+
+
+def insert_chunk(collection, data, params):
+    chunk = make_chunk(data, params)
+    return collection.insert_one(chunk).inserted_id
+
+
+def update_chunk(collection, data, key, params, upsert=True, how="$set"):
+    chunk = make_chunk(data, **params)
+    result = collection.update_one(key, {how: chunk}, upser=upsert)
+    return {"upserted_id": result.upserted_id, "modified_count": result.modified_count}
+
+
+import numpy as np
+
+
+def read_chunk(collection, filters, fields, index=None, **kwargs):
+    prj = projection(index, fields)
+    columns = list(prj.keys())
+    columns.remove("_id")
+    prj["_l"] = 1
+    cursor = collection.find(filters, prj, **kwargs)
+
+    dct = {name: [] for name in columns}
+    for doc in cursor:
+        length = doc["_l"]
+        for name in columns:
+            line = doc.get(name, [])
+            if len(line) == length:
+                dct[name].extend(line)
+            else:
+                dct[name].extend([np.NaN]*length)
+
+    data = pd.DataFrame(dct)
+    return data.set_index(index) if index else data
+

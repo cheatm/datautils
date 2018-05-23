@@ -17,8 +17,8 @@ class DataAPIBase(object):
     stock_d = MultiReader()
     stock_h = MultiReader()
     stock_1m = MultiReader()
-    factor = MultiReader()
-    daily_indicator = MultiReader()
+    factor = SingleReader()
+    daily_indicator = SingleReader()
 
     api_list = SingleReader()
     api_param = SingleReader()
