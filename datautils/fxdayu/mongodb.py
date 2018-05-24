@@ -162,7 +162,7 @@ class RangeColReader(ColReader):
             if start:
                 filters["$or"] = [{self.end_key: {"$gte": start}}, {self.end_key: ""}]
             if end:
-                filters[self.start_key] = {"$lte": start}
+                filters[self.start_key] = {"$lte": end}
         return super(RangeColReader, self).read(index, fields, hint, **filters)
 
 
