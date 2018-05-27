@@ -1,3 +1,4 @@
+import importlib
 
 
 class SingleReader(object):
@@ -40,3 +41,14 @@ class DataAPIBase(object):
     wind_finance = SingleReader()
     sec_adj_factor = SingleReader()
 
+
+class DataAPI(DataAPIBase):
+
+    def __init__(self, *conf):
+        self.conf = conf
+        for single in conf:
+            _type = single["type"]
+            module = importlib.import_module("datautils.fxdayu.%s" % _type)
+            readers = module.load_conf(single)
+            for key, reader in readers.items():
+                setattr(self, key, reader)

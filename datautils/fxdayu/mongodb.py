@@ -181,3 +181,22 @@ DB_READER_MAP = {
     "DAILY_INDICATOR": SDIReader,
     "STOCK_1M": ChunkDBReader
 }
+
+
+def load_conf(dct):
+    from pymongo import MongoClient
+
+    client = MongoClient(dct["MONGODB_URI"])
+    readers = {}
+    for view, db_name in dct.get("DB_MAP", {}).items():
+        db = client[db_name]
+        cls = DB_READER_MAP.get(view, DBReader)
+        readers[view.lower()] = cls(db)
+
+    for view, db_col in dct.get("COL_MAP", {}).items():
+        col, db = db_col.split(".", 1)
+        collection = client[col][db]
+        cls = COL_READER_MAP.get(view, ColReader)
+        readers[view.lower()] = cls(collection)
+
+    return readers

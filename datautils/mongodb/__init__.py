@@ -1,4 +1,5 @@
 from pymongo import InsertOne, UpdateOne
+from pymongo.cursor import CursorType
 from collections import Iterable
 import pandas as pd
 import six
@@ -104,7 +105,7 @@ def projection(index=None, fields=None):
 def read(collection, index=None, fields=None, hint=None, **filters):
     filters = parser(**filters)
     prj = projection(index, fields)
-    cursor = collection.find(filters, prj)
+    cursor = collection.find(filters, prj, cursor_type=CursorType.EXHAUST)
     if hint is not None:
         cursor.hint(hint)
     data = pd.DataFrame(list(cursor))

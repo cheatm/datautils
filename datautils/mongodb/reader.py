@@ -2,6 +2,7 @@ from datautils.mongodb import read, parser, projection, parse_range, read_chunk
 from datautils.fxdayu.basic import SingleReader, MultiReader
 import logging
 import pandas as pd
+import six
 
 
 class ColReader(SingleReader):

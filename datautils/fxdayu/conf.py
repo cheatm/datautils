@@ -1,5 +1,7 @@
 import os
 
+SOURCE = os.environ.get("SOURCE", "mongodb")
+
 MONGODB_URI = os.environ.get("MONGODB_URI", "localhost")
 
 STOCK_D = os.environ.get("STOCK_D", "Stock_D")
