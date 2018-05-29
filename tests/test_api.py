@@ -1,5 +1,5 @@
 import unittest
-from datautils.fxdayu import instance
+from datautils.fxdayu.basic import DataAPI
 
 
 def assert_shape(data, shape):
@@ -11,7 +11,7 @@ def assert_shape(data, shape):
 class TestAPI(unittest.TestCase):
 
     def init_api(self):
-        instance.init({
+        return DataAPI({
             "type": "mongodb",
             "DB_MAP": {
                 "FACTOR": "factors",
@@ -45,8 +45,7 @@ class TestAPI(unittest.TestCase):
         })
 
     def setUp(self):
-        self.init_api()
-        self.api = instance.api
+        self.api = self.init_api()
 
     def test_views(self):
         income = self.api.income(symbol="000001.SZ", ann_date=("20170101",))
