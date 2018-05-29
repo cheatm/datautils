@@ -4,24 +4,59 @@ import importlib
 class SingleReader(object):
 
     def __call__(self, index=None, fields=None, **filters):
+        """
+        根据输入的参数返回DataFrame
+
+        :param index: 在返回的DataFrame将指定的字段设为Index
+            - None: 返回结果不设Index
+            - str: 返回结果设置Index
+            - list: 返回结果设置MultiIndex
+        :param fields: 需要读取的字段
+            - None: 全部
+            - str: 单个
+            - list, Iterable
+        :param filters: 对每个字段的筛选条件
+            - tuple: (start, end); 根据范围筛选, start或end可以为None, 代表不设最小或最大
+            - str: 筛选对应字段为某一个值
+            - list, set, Iterable: 筛选对应字段满足其中任何一个值的。
+        :return: pandas.DataFrame
+        """
         pass
 
 
 class MultiReader(object):
 
     def __call__(self, names, index=None, fields=None, **filters):
+        """
+        根据输入的参数返回dict: {name: DataFrame}
+        :param names: 返回的dict中对应的key
+            - list
+        :param index: 在返回的DataFrame将指定的字段设为Index
+            - None: 返回结果不设Index
+            - str: 返回结果设置Index
+            - list: 返回结果设置MultiIndex
+        :param fields: 需要读取的字段
+            - None: 全部
+            - str: 单个
+            - list, Iterable
+        :param filters: 对每个字段的筛选条件
+            - tuple: (start, end); 根据范围筛选, start或end可以为None, 代表不设最小或最大
+            - str: 筛选对应字段为某一个值
+            - list, set, Iterable: 筛选对应字段满足其中任何一个值的。
+        :return: dict: {name: pandas.DataFrame}
+        """
         pass
 
 
 class DataAPIBase(object):
-
+    # 本地已有数据接口
     stock_d = MultiReader()
     stock_h = MultiReader()
     stock_1m = MultiReader()
     factor = SingleReader()
     fxdayu_factor = SingleReader()
+    # jaqs接口
     daily_indicator = SingleReader()
-
     api_list = SingleReader()
     api_param = SingleReader()
     inst_info = SingleReader()
@@ -45,6 +80,23 @@ class DataAPIBase(object):
 class DataAPI(DataAPIBase):
 
     def __init__(self, *conf):
+        """
+        根据输入的配置初始化DataAPI
+        :param conf:
+            type: dict
+            format:
+                {"type": "module-name",
+                 "other-key": "other-value",
+                  ...}
+        可以一次性输入多个conf。
+        程序会读取每一个conf中的type, 并在datautils.fxdayu下寻找同名的module, 然后调用其中的load_conf方法, 生成对应的reader赋值个DataAPI。
+
+        load_conf方法接收一个 conf dict 为参数, 并返回一个字典: {name: reader}
+            - name: str, DataAPI的属性名
+            - reader: SingleReader | MultiReader, DataAPI的属性
+
+        可参考 datautils.fxdayu.mongodb.load_conf
+        """
         self.conf = conf
         for single in conf:
             _type = single["type"]
