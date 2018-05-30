@@ -14,13 +14,17 @@ def init_mongodb_example():
     init(
         {
             "type": "mongodb",
+            "UPDATE": {
+                "factor": "log.factor",
+                "candle": "log.sinta",
+                "daily_indicator": "log.dailyIndicator"
+            },
             "DB_MAP": {
                 "FACTOR": "factors",
                 "FXDAYU_FACTOR": "fxdayu_factors",
                 "DAILY_INDICATOR": "SecDailyIndicator",
-                "STOCK_1M": "Stock_1M",
-                "STOCK_D": "Stock_D",
-                "STOCK_H": "Stock_H"
+                "BAR": "Stock_1M",
+                "DAILY": "Stock_D"
             },
             "COL_MAP": {
                 "API_LIST": "jz.apiList",
@@ -42,9 +46,7 @@ def init_mongodb_example():
                 "WIND_FINANCE": "lb.windFinance",
                 "SEC_ADJ_FACTOR": "lb.secAdjFactor"
             },
-            "MONGODB_URI": "192.168.0.102"
+            "MONGODB_URI": conf.MONGODB_URI
         }
     )
-
-    print(api.factor(fields=["PB", "PE"], symbol=["000001.SZ", "000002.SZ"]))
 

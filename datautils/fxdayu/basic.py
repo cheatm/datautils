@@ -48,6 +48,18 @@ class MultiReader(object):
         pass
 
 
+class DailyReader(object):
+
+    def __call__(self, symbols, start, end, fields=None):
+        pass
+
+
+class BarReader(object):
+
+    def __call__(self, symbols, trade_date, fields=None):
+        pass
+
+
 class DataAPIBase(object):
     # 本地已有数据接口
     stock_d = MultiReader()
@@ -55,6 +67,7 @@ class DataAPIBase(object):
     stock_1m = MultiReader()
     factor = SingleReader()
     fxdayu_factor = SingleReader()
+    update_status = SingleReader()
     # jaqs接口
     daily_indicator = SingleReader()
     api_list = SingleReader()
@@ -75,6 +88,8 @@ class DataAPIBase(object):
     sec_susp = SingleReader()
     wind_finance = SingleReader()
     sec_adj_factor = SingleReader()
+    daily = DailyReader()
+    bar = BarReader()
 
 
 class DataAPI(DataAPIBase):

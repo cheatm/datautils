@@ -41,7 +41,7 @@ class TestAPI(unittest.TestCase):
                 "WIND_FINANCE": "lb.windFinance",
                 "SEC_ADJ_FACTOR": "lb.secAdjFactor"
             },
-            "MONGODB_URI": "192.168.0.102"
+            "MONGODB_URI": "192.168.0.102,192.168.0.101"
         })
 
     def setUp(self):

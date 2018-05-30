@@ -1,6 +1,6 @@
-from datautils.fxdayu import conf
-from datautils.fxdayu.basic import DataAPIBase, SingleReader
+from datautils.fxdayu.basic import SingleReader, DailyReader, BarReader
 from datautils.mongodb.reader import ColReader, DBReader, ChunkDBReader
+from datautils.mongodb import read
 import pandas as pd
 
 
@@ -8,49 +8,6 @@ DBS = ("STOCK_D", "STOCK_H", "STOCK_1M", "FACTOR", "FXDAYU_FACTOR", "DAILY_INDIC
 COLS = ("API_LIST", "API_PARAM", "INST_INFO", "TRADE_CAL", "BALANCE_SHEET", "CASH_FLOW", "FIN_INDICATOR", "INCOME",
         "INDEX_CONS", "INDEX_WEIGHT_RANGE", "PROFIT_EXPRESS", "S_STATE", "SEC_DIVIDEND", "SEC_INDUSTRY", "SEC_SUSP",
         "SEC_RESTRICTED", "WIND_FINANCE", "SEC_ADJ_FACTOR")
-
-
-class DataAPI(DataAPIBase):
-
-    def __init__(self, client):
-        self.client = client
-        for name in COLS:
-            self.__setattr__(name.lower(), self.get_col_reader(name))
-        for name in DBS:
-            self.__setattr__(name.lower(), self.get_db_reader(name))
-
-    def get_col_reader(self, name):
-        col = getattr(conf, name)
-        Reader = COL_READER_MAP.get(name, ColReader)
-        return Reader(self._gen_col(col))
-
-    def get_db_reader(self, name):
-        db = getattr(conf, name)
-        Reader = DB_READER_MAP.get(name, DBReader)
-        return Reader(self._gen_db(db))
-
-    def _gen_col(self, string):
-        db, col = string.split(".", 1)
-        return self.client[db][col]
-
-    def _gen_db(self, string):
-        return self.client[string]
-
-    @classmethod
-    def conf(cls):
-        from pymongo import MongoClient
-
-        client = MongoClient(conf.MONGODB_URI)
-        return cls(client)
-
-    def add_fields(self, api, db):
-        names = self._gen_db(db).collection_names()
-        params = pd.DataFrame({"api": api, "ptype": "OUT", "must": "N"}, names)
-        params.index.name = "param"
-        collection = self._gen_col(conf.API_PARAM)
-
-        from datautils.mongodb import update
-        return update(collection, params)
 
 
 def expand(symbol):
@@ -115,9 +72,11 @@ class SDIReader(AppDBReader):
 from datetime import datetime
 
 
-def str2date(string, **replace):
+def convert2date(string, **replace):
     if isinstance(string, six.string_types):
         return datetime.strptime(string.replace("-", ""), "%Y%m%d").replace(**replace)
+    elif isinstance(string, int):
+        return convert2date(str(string), **replace)
     else:
         return string
 
@@ -131,7 +90,7 @@ class FactorReader(SDIReader):
         names, fields, filters = super(FactorReader, self).input(fields, **filters)
         if self.index in filters:
             start, end = filters[self.index]
-            filters[self.index] = (str2date(start), str2date(end, hour=23, minute=59, second=59))
+            filters[self.index] = (convert2date(start), convert2date(end, hour=23, minute=59, second=59))
         return names, fields, filters
 
     def output(self, data):
@@ -166,6 +125,117 @@ class RangeColReader(ColReader):
         return super(RangeColReader, self).read(index, fields, hint, **filters)
 
 
+def unfold(symbol):
+    if symbol.endswith(".SH"):
+        return symbol[:-3] + ".XSHG"
+    elif symbol.endswith(".SZ"):
+        return symbol[:-3] + ".XSHE"
+    else:
+        return symbol
+
+
+def fold(symbol):
+    if symbol.endswith(".XSHG"):
+        return symbol[:6] + ".SH"
+    elif symbol.endswith(".XSHE"):
+        return symbol[:6] + ".SZ"
+    else:
+        return symbol
+
+
+def date2int(date):
+    return date.year*10000+date.month*100+date.day
+
+
+class RenameDBReader(DBReader):
+
+    def get_col(self, name):
+        return super(RenameDBReader, self).get_col(unfold(name))
+
+
+class RenameChunkReader(ChunkDBReader):
+
+    def get_col(self, name):
+        return super(RenameChunkReader, self).get_col(unfold(name))
+
+
+class DailyDBReader(DailyReader):
+
+    def __init__(self, db):
+        self.reader = RenameDBReader(db)
+
+    def __call__(self, symbols, start, end, fields=None):
+        return self.reader(symbols, "datetime", fields,
+                           datetime=(convert2date(start, hour=15), convert2date(end, hour=15)))
+
+
+class BarDBReader(BarReader):
+
+    def __init__(self, db):
+        self.reader = RenameChunkReader(db)
+
+    def __call__(self, symbols, trade_date, fields=None):
+        return self.reader(symbols, "datetime", fields, _d=convert2date(trade_date))
+
+
+class UpdateStatus(SingleReader):
+
+    def __init__(self, client, trade_dates, factor="log.factor", daily_indicator="log.dailyIndicator", candle="sinta"):
+        self.client = client
+        self.factor = self._get_col(factor)
+        self.daily_indicator = self._get_col(daily_indicator)
+        self.candle = self._get_col(candle)
+        self.trade_dates = trade_dates
+
+    def __call__(self, index=None, fields=None, trade_date=(None, None), **filters):
+        start, end = trade_date
+        if start:
+            start = int(start)
+        if end:
+            end = int(end)
+        else:
+            end = datetime.today()
+            end = end.year*10000 + end.month*100 + end.day
+        dates = self.trade_dates(trade_date=(start, end))
+        dates = list(dates.trade_date.apply(str))
+
+        factor_status = self.factor_status(dates[0], dates[-1])
+        indicator_status = self.indicator_status(dates[0], dates[-1])
+        candle_status = self.candle_status(dates)
+        status = pd.DataFrame({"factor": factor_status, "daily": candle_status, "secDailyIndicator": indicator_status})
+        status.fillna(0, inplace=True)
+        status["status"] = status.applymap(lambda s: 1 if s != 0 else 0).prod(axis=1)
+        status.index.name="trade_date"
+        return status.reset_index()
+
+    @staticmethod
+    def _expand_date(date):
+        if isinstance(date, str):
+            return datetime.strptime(date, "%Y%m%d").strftime("%Y-%m-%d")
+        else:
+            return None
+
+    def factor_status(self, start=None, end=None):
+        status = read(self.factor, index="date", date=(self._expand_date(start), self._expand_date(end)), local=2)
+        return status["local"].rename_axis(lambda s: s.replace("-", ""))
+
+    def indicator_status(self, start=None, end=None):
+        status = read(self.daily_indicator, index="trade_date", trade_date=(start, end))
+        return status.prod(axis=1)
+
+    def candle_status(self, dates):
+        dct = {date: self._candle_status(date) for date in dates}
+        return pd.Series(dct)
+
+    def _candle_status(self, date):
+        date = self._expand_date(date)
+        return self.candle.find({"date": date, "D": 1}).count()
+
+    def _get_col(self, db_col):
+        db, col = db_col.split(".", 1)
+        return self.client[db][col]
+
+
 from functools import partial
 
 
@@ -179,7 +249,8 @@ DB_READER_MAP = {
     "FACTOR": FactorReader,
     "FXDAYU_FACTOR": FactorReader,
     "DAILY_INDICATOR": SDIReader,
-    "STOCK_1M": ChunkDBReader
+    "BAR": BarDBReader,
+    "DAILY": DailyDBReader
 }
 
 
@@ -194,9 +265,16 @@ def load_conf(dct):
         readers[view.lower()] = cls(db)
 
     for view, db_col in dct.get("COL_MAP", {}).items():
-        col, db = db_col.split(".", 1)
-        collection = client[col][db]
+        db, col = db_col.split(".", 1)
+        collection = client[db][col]
         cls = COL_READER_MAP.get(view, ColReader)
         readers[view.lower()] = cls(collection)
 
+    update_status = dct.get("UPDATE", None)
+    if isinstance(update_status, dict):
+        readers["update_status"] = UpdateStatus(client,
+                                                readers["trade_cal"],
+                                                **update_status)
+
     return readers
+
