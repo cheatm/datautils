@@ -119,3 +119,22 @@ class DataAPI(DataAPIBase):
             readers = module.load_conf(single)
             for key, reader in readers.items():
                 setattr(self, key, reader)
+
+
+from functools import wraps
+
+
+def single_fields_mapper(in_map, out_map):
+    def wrapper(func):
+        @wraps(func)
+        def wrapped(index=None, fields=None, **filters):
+            if isinstance(fields, (list, set)):
+                fields = list(map(lambda s: in_map.get(s, s), fields))
+            for key in list(filters):
+                if key in in_map:
+                    filters[in_map[key]] = filters.pop(key)
+            print(filters)
+            result = func(index, fields, **filters)
+            return result.rename_axis(out_map, 1)
+        return wrapped
+    return wrapper

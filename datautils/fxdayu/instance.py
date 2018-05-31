@@ -49,4 +49,3 @@ def init_mongodb_example():
             "MONGODB_URI": conf.MONGODB_URI
         }
     )
-

@@ -17,9 +17,9 @@ class TestAPI(unittest.TestCase):
                 "FACTOR": "factors",
                 "FXDAYU_FACTOR": "fxdayu_factors",
                 "DAILY_INDICATOR": "SecDailyIndicator",
-                "STOCK_1M": "Stock_1M",
-                "STOCK_D": "Stock_D",
-                "STOCK_H": "Stock_H"
+                "BAR": "Stock_1M",
+                "DAILY": "Stock_D",
+                # "BAR": "Stock_H"
             },
             "COL_MAP": {
                 "API_LIST": "jz.apiList",
@@ -67,3 +67,21 @@ class TestAPI(unittest.TestCase):
         assert_shape(adj_factor, (244, 3))
         dividend = self.api.sec_dividend(ann_date=("20170101", "20180101"))
         assert_shape(dividend, (6546, 13))
+
+    def test_return_type(self):
+        import numpy as np
+
+        trade_cal = self.api.trade_cal()
+        dtype = trade_cal.dtypes["trade_date"]
+        self.assertEqual(dtype, np.int64, dtype)
+
+        daily_indicator = self.api.daily_indicator(fields=["pe", "pb"], symbol="000001.SZ", trade_date=("20180101", None))
+        dtype = daily_indicator.dtypes["trade_date"]
+        self.assertEqual(dtype, np.object, dtype)
+
+        daily = self.api.daily(["000001.SZ"], 20180101, 20180131)
+        self.assertTrue("000001.SZ" in daily)
+        # print(daily)
+
+        bar = self.api.bar(["000001.SZ"], 20180103, ["datetime", "open", "close", "volume"])
+        print(bar)

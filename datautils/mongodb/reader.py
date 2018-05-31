@@ -78,4 +78,3 @@ class ChunkDBReader(DBReader):
 
     def _read(self, name, index, filters, prj):
         return read_chunk(self.get_col(name), filters, prj, index)
-
