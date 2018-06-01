@@ -133,7 +133,6 @@ def single_fields_mapper(in_map, out_map):
             for key in list(filters):
                 if key in in_map:
                     filters[in_map[key]] = filters.pop(key)
-            print(filters)
             result = func(index, fields, **filters)
             return result.rename_axis(out_map, 1)
         return wrapped
