@@ -33,7 +33,6 @@ class SQLSingleReader(SingleReader):
 
     def read(self, index=None, fields=None, **filters):
         command = make_command(self.table, fields, **filters)
-        print(command)
         return pd.read_sql(make_command(self.table, fields, **filters), self.conn)
 
 
