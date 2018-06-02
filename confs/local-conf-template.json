@@ -1,0 +1,18 @@
+{
+    "type": "local",
+    "root_dir": "D:/jaqs_fxdayu/data",
+    "sqlite": "data.sqlite",
+    "sqlite_map": {
+        "trade_cal": "[jz.secTradeCal]",
+        "balance_sheet": "[lb.balanceSheet]",
+        "cash_flow": "[lb.cashFlow]",
+        "fin_indicator": "[lb.finIndicator]",
+        "income": "[lb.income]",
+        "index_cons": "[lb.indexCons]",
+        "profit_express": "[lb.profitExpress]",
+        "sec_dividend": "[lb.secDividend]",
+        "sec_industry": "[lb.secIndustry]"
+    },
+    "daily": "daily",
+    "daily_views": ["factor", "daily_indicator", "daily", "sec_adj_factor"]
+}
