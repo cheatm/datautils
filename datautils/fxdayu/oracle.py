@@ -45,6 +45,7 @@ def iter_filters(**filters):
 
 def read_oracle(cursor, name, fields, **filters):
     command = make_command(name, fields, **filters)
+    print(command)
     try:
         cursor.execute(command)
         r = cursor.fetchall()
@@ -63,8 +64,9 @@ class OracleSingleReader(SingleReader):
     COLUMNS = [DATE, SYMBOL, VALUE]
     INDEX = [SYMBOL, DATE]
 
-    def __init__(self, conn):
+    def __init__(self, conn, db):
         self.conn = conn
+        self.db = db
 
     def __call__(self, index=None, fields=None, **filters):
         cursor = self.conn.cursor()
@@ -76,16 +78,24 @@ class OracleSingleReader(SingleReader):
         return pd.DataFrame(dct).reset_index().rename_axis(REVERSED_FIELDS_MAP, 1)
 
     def _read(self, cursor, field, **filters):
+        field = ".".join((self.db, field))
         data = read_oracle(cursor, field, self.COLUMNS, **filters)
-        return data.set_index(self.INDEX)[self.VALUE]
+        return data.drop_duplicates(self.INDEX).set_index(self.INDEX)[self.VALUE]
 
 
 def load_conf(dct):
 
     return {}
 
-if __name__ == '__main__':
-    connection = cx_Oracle.Connection("FXDAYU/Xinger520@192.168.0.102:1520/xe")
-    reader = OracleSingleReader(connection)
-    r = reader(fields=["A020006A", "B010007A"], symbol="000616.SZ", trade_date=("20160104", "20160131"))
+
+def test():
+    connection = cx_Oracle.Connection("bigfish/bigfish@172.16.55.54:1521/ORCL2")
+    # connection = cx_Oracle.Connection("bigfish/bigfish@172.16.55.54:1521/WIND")
+    # connection.close()
+    reader = OracleSingleReader(connection, "WIND")
+    r = reader(fields=["MF_U_ACCA", "MF_U_AD"], symbol="000616.SZ", trade_date=("20160104", "20160131"))
     print(r)
+
+
+if __name__ == "__main__":
+    test()

@@ -48,4 +48,15 @@ def init_mongodb_example():
             },
             "MONGODB_URI": conf.MONGODB_URI
         }
-    )
+    )    
+
+if __name__ == "__main__":
+    import json
+
+    config = json.load(open(r'C:\Users\bigfish01\Documents\Python Scripts\datautils\confs\mssql-conf-guojin.json'))
+    init(config)
+
+    # r = api.daily_indicator(None, ["pe", "pb", "symbol", "trade_date"], symbol=["000001.SZ", "600000.SH"])
+    r = api.sec_adj_factor(fields={"symbol", "trade_date", "adjust_factor"}, symbol=["000001.SZ", "600000.SH"], trade_date=("20180101", "20180131"))
+
+    print(r)
