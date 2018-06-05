@@ -1,6 +1,7 @@
 {
   "type": "mssql",
   "connection_params": ["172.16.100.7", "bigfish01", "bigfish01@0514", "NWindDB"],
+  "external": true,
   "db_map": {
     "api_list": "",
     "api_param": "",

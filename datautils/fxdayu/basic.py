@@ -1,4 +1,5 @@
 import importlib
+from collections import Iterable
 
 
 class SingleReader(object):
@@ -21,6 +22,33 @@ class SingleReader(object):
             - list, set, Iterable: 筛选对应字段满足其中任何一个值的。
         :return: pandas.DataFrame
         """
+        pass
+
+
+class SingleMapReader(SingleReader):
+
+    mapper = {}
+
+    def __call__(self, index=None, fields=None, **filters):
+        reversed_mapper = {}
+        if fields is None:
+            reversed_mapper = {value: key for key, value in self.mapper.items()}
+        elif isinstance(fields, Iterable) and not isinstance(fields, str):
+            reversed_mapper = {self.mapper.get(field, field): field for field in fields}
+            fields = [self.mapper.get(field, field) for field in fields]
+        else:
+            reversed_mapper[self.mapper.get(fields, fields)] = fields
+            fields = [self.mapper.get(fields, fields)]
+        
+        for key in list(filters):
+            if key in self.mapper:
+                filters[self.mapper[key]] = filters.pop(key)
+                reversed_mapper[self.mapper[key]] = key
+        
+        result = self.read(fields, **filters)
+        return result.rename_axis(reversed_mapper, 1)
+    
+    def read(self, fields=None, **filters):
         pass
 
 
@@ -54,13 +82,46 @@ class DailyReader(object):
         pass
 
 
+
 class BarReader(object):
 
     def __call__(self, symbols, trade_date, fields=None):
         pass
 
 
+class Predefine(SingleReader):
+
+    def __init__(self):
+        self.methods = {}
+    
+    def add(self, name, method):
+        self.methods[name] = method
+
+    def update(self, dct):
+        self.methods.update(dct)
+
+    def __call__(self, *args, **kwargs):
+        names, fields = [], []
+        for name, field in self.iter_call():
+            names.append(name)
+            fields.append(field)
+        ptypes = ["OUT"] * len(names)
+
+        return {"api": names, "param": fields, "ptype": ptypes}
+
+    def iter_call(self):
+        for name, method in self.methods.items():
+            try:
+                fields = method()
+            except:
+                pass
+            else:
+                for field in fields:
+                    yield name, field
+
+
 class DataAPIBase(object):
+
     # 本地已有数据接口
     stock_d = MultiReader()
     stock_h = MultiReader()
@@ -68,6 +129,7 @@ class DataAPIBase(object):
     factor = SingleReader()
     fxdayu_factor = SingleReader()
     update_status = SingleReader()
+    predefine = Predefine()
     # jaqs接口
     daily_indicator = SingleReader()
     api_list = SingleReader()
@@ -90,6 +152,25 @@ class DataAPIBase(object):
     sec_adj_factor = SingleReader()
     daily = DailyReader()
     bar = BarReader()
+
+    _external = {}
+
+    def set_external(self, ext):
+        if isinstance(ext, dict):
+            if len(ext):
+                self._external.update(ext)
+        elif ext is None:
+            self._external = {}
+        else:
+            raise TypeError("External to be set should be dict() or None")
+    
+    def get_external(self):
+        return self._external
+    
+    def del_external(self):
+        self._external = {}
+    
+    external = property(get_external, set_external, del_external)
 
 
 class DataAPI(DataAPIBase):
@@ -117,6 +198,8 @@ class DataAPI(DataAPIBase):
             _type = single["type"]
             module = importlib.import_module("datautils.fxdayu.%s" % _type)
             readers = module.load_conf(single)
+            predefine = readers.pop("predefine", {})
+            self.predefine.update(predefine)
             for key, reader in readers.items():
                 setattr(self, key, reader)
 
@@ -137,3 +220,4 @@ def single_fields_mapper(in_map, out_map):
             return result.rename_axis(out_map, 1)
         return wrapped
     return wrapper
+

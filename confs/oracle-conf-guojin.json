@@ -1,4 +1,20 @@
 {
     "type": "oracle",
-    "url": "bigfish/bigfish@172.16.55.154:1521/WIND"
+    "url": "bigfish/bigfish@172.16.55.54:1521/ORCL2",
+    "api": {
+        "factor":{
+            "db": "WIND",
+            "fields_map": {
+                "symbol": "SYMBOLCODE",
+                "trade_date": "TDATE",
+                "ACCA": "MF_U_ACCA",
+                "AD": "MF_U_AD"
+            },
+            "table_structure":{
+                "DATE": "TDATE",
+                "SYMBOL": "SYMBOLCODE",
+                "RAWVALUE": "RAWVALUE"
+            } 
+        }
+    }
 }

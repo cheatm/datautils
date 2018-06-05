@@ -1,6 +1,7 @@
 import cx_Oracle
 import pandas as pd
-from datautils.fxdayu.basic import SingleReader, MultiReader
+from datautils.fxdayu.basic import SingleReader, MultiReader, SingleMapReader
+import logging
 
 
 FIELDS_MAP = {
@@ -56,46 +57,69 @@ def read_oracle(cursor, name, fields, **filters):
         return pd.DataFrame(r, columns=fields)
 
 
-class OracleSingleReader(SingleReader):
+class OracleSingleReader(SingleMapReader):
 
     DATE = "TDATE"
     SYMBOL = "SYMBOLCODE"
     VALUE = "RAWVALUE"
-    COLUMNS = [DATE, SYMBOL, VALUE]
-    INDEX = [SYMBOL, DATE]
 
     def __init__(self, conn, db):
         self.conn = conn
         self.db = db
+    
+    def get_tables(self):
+        command = make_command("ALL_TABLES", ["TABLE_NAME"], OWNER=self.db)
+        tables = pd.read_sql(command, self.conn)
+        return set(tables["TABLE_NAME"])
 
-    def __call__(self, index=None, fields=None, **filters):
+    def read(self, fields=None, **filters):
+        if fields is None:
+            fields = self.get_tables()
         cursor = self.conn.cursor()
-        for key in list(filters):
-            if key in FIELDS_MAP:
-                filters[FIELDS_MAP[key]] = filters.pop(key)
-
-        dct = {field: self._read(cursor, FIELDS_MAP.get(field, field), **filters) for field in fields}
-        return pd.DataFrame(dct).reset_index().rename_axis(REVERSED_FIELDS_MAP, 1)
+        dct = dict(self._iter_read(cursor, fields, filters))
+        return pd.DataFrame(dct).reset_index()
+    
+    def _iter_read(self, cursor, fields, filters):
+        for field in fields :
+            try:
+                yield field, self._read(cursor, field, **filters)
+            except Exception as e:
+                logging.error("read Oracle | %s | %s | %s | %s", self.db, field, filters, e)
+                
 
     def _read(self, cursor, field, **filters):
         field = ".".join((self.db, field))
         data = read_oracle(cursor, field, self.COLUMNS, **filters)
         return data.drop_duplicates(self.INDEX).set_index(self.INDEX)[self.VALUE]
 
+    @property
+    def COLUMNS(self):
+        return [self.DATE, self.SYMBOL, self.VALUE]
+    
+    @property
+    def INDEX(self):
+        return [self.SYMBOL, self.DATE]
+
 
 def load_conf(dct):
+    r = {}
+    url = dct["url"]
+    connection =  cx_Oracle.Connection(url)
+    for api, conf in dct.get("api", {}).items():
+        db = conf["db"]
+        ReaderCls = get_reader_cls(api, conf)
+        reader = ReaderCls(connection, db)
+        r[api] = reader
+        if conf.get("predefine", False):
+            r.setdefault("predefine", {})[api] = reader.get_tables
 
-    return {}
+    return r
 
 
-def test():
-    connection = cx_Oracle.Connection("bigfish/bigfish@172.16.55.54:1521/ORCL2")
-    # connection = cx_Oracle.Connection("bigfish/bigfish@172.16.55.54:1521/WIND")
-    # connection.close()
-    reader = OracleSingleReader(connection, "WIND")
-    r = reader(fields=["MF_U_ACCA", "MF_U_AD"], symbol="000616.SZ", trade_date=("20160104", "20160131"))
-    print(r)
-
-
-if __name__ == "__main__":
-    test()
+def get_reader_cls(name, dct):
+    fields_map = dct.get("fields_map", FIELDS_MAP)
+    table_structure = dct.get("table_structure", {})
+    attrs = {}
+    attrs["mapper"] = fields_map
+    attrs.update(table_structure)
+    return type("%sReader" % name, (OracleSingleReader,), attrs)

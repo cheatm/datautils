@@ -1,17 +1,7 @@
 import pymssql
 from datautils.sql import make_command
-from datautils.fxdayu.basic import SingleReader, MultiReader, single_fields_mapper, DailyReader
+from datautils.fxdayu.basic import SingleReader, MultiReader, single_fields_mapper, DailyReader, SingleMapReader
 import pandas as pd
-
-
-# server = "192.168.0.102"
-# user = "SA"
-# password = "Xinger520"
-#
-# table = "dbo.ASHAREBALANCESHEET"
-#
-# conn = pymssql.connect(server, user, password, "dbo")
-#
 
 
 FIELDS_MAP = {}
@@ -25,12 +15,20 @@ def reverse_map(dct):
 from collections import Iterable
 
 
-class SQLSingleReader(SingleReader):
+class SQLSingleReader(SingleMapReader):
 
     def __init__(self, conn, table):
         self.conn = conn
         self.table = table
-        self.limits = self._find_limits()
+        self._limits = set()
+    
+    @property
+    def limits(self):
+        if self._limits:
+            return self._limits
+        else:
+            self._limits = self._find_limits()
+            return self._limits
     
     def _find_limits(self):
         schema, table_name = self.table.split(".", 1)
@@ -43,7 +41,7 @@ class SQLSingleReader(SingleReader):
 
     def select_fields(self, fields):
         if fields is None:
-            fields = self.limits
+            return None
         elif isinstance(fields, Iterable) and not isinstance(fields, str):
             fields = set(fields)
         else:
@@ -54,10 +52,7 @@ class SQLSingleReader(SingleReader):
         fields = self.limits.intersection(set(filters))
         return {name: filters[name] for name in fields}
 
-    def __call__(self, index=None, fields=None, **filters):
-        return self.read(index=None, fields=fields, **filters)
-
-    def read(self, index=None, fields=None, **filters):
+    def read(self, fields=None, **filters):
         fields = self.select_fields(fields)
         filters = self.select_filters(filters)
         command = make_command(self.table, fields, **filters)
@@ -66,46 +61,50 @@ class SQLSingleReader(SingleReader):
 
 class TradeDateReader(SQLSingleReader):
 
-    def read(self, index=None, fields=None, **filters):
-        return super(TradeDateReader, self).read(index, fields, **filters).drop_duplicates()
+    def read(self, fields=None, **filters):
+        return super(TradeDateReader, self).read(fields, **filters).drop_duplicates()
 
 
 class SQLDailyReader(DailyReader):
 
-    def __init__(self, conn, table):
-        self.reader = SQLSingleReader(conn, table)
+    def __init__(self, reader):
+        self.reader = reader
 
     def __call__(self, symbols, start, end, fields=None):
-        return self.read(None, fields, trade_date=(start, end), symbol=symbols)
+        return self.read(fields, trade_date=(start, end), symbol=symbols)
 
-    def read(self, index=None, fields=None, **filters):
-        return self.reader.read(index, fields, **filters)
+    def read(self, fields=None, **filters):
+        return self.reader(None, fields, **filters)
 
 
 class IndexConsReader(SQLSingleReader):
 
      def __call__(self, index=None, fields=None, **filters):
-        d1 = self.read(index=None, fields=fields, **filters)
+        d1 = super(IndexConsReader, self).__call__(index=None, fields=fields, **filters)
         if "out_date" in filters:
             filters["out_date"] = None
         else:
             return d1
-        d2 = self.read(index=None, fields=fields, **filters)
+        d2 = super(IndexConsReader, self).__call__(index=None, fields=fields, **filters)
         return pd.concat([d1, d2], ignore_index=True)
     
 
 class SecSuspReader(SQLSingleReader):
 
      def __call__(self, index=None, fields=None, **filters):
-        d1 = self.read(index=None, fields=fields, **filters)
+        d1 = super(SecSuspReader, self).__call__(index=None, fields=fields, **filters)
         if "resu_date" in filters:
             filters["resu_date"] = None
         else:
             return d1
-        d2 = self.read(index=None, fields=fields, **filters)
+        d2 = super(SecSuspReader, self).__call__(index=None, fields=fields, **filters)
         return pd.concat([d1, d2], ignore_index=True)
     
 
+def create_external(conn):
+    tables = pd.read_sql("select TABLE_SCHEMA,TABLE_NAME from information_schema.TABLES", conn)
+    return {table: SQLSingleReader(conn, table) for table in (tables.TABLE_SCHEMA + "." + tables.TABLE_NAME)}
+        
 
 SPECIAL_CLS = {
     "trade_cal": TradeDateReader,
@@ -120,20 +119,32 @@ def load_conf(dct):
     cp = dct["connection_params"]
     conn = pymssql.connect(*cp)
     db_map = dct["db_map"]
+    fields_map = dct.get("fields_map", {})
     for method, table in db_map.items():
         if len(table) == 0:
             continue
         name = method.lower()
         cls = SPECIAL_CLS.get(name, SQLSingleReader)
-        methods[name] = cls(conn, table)
-    for key, mapper in dct.get("fields_map", {}).items():
-        reader = methods[key.lower()]
-        reader.read = single_fields_mapper(mapper, reverse_map(mapper))(reader.read)
+        mapper = fields_map.get(method, {})
+        if issubclass(cls, SingleMapReader):
+            ReaderCls = type("%s_Reader" % method.upper(), (cls,), {"mapper": mapper})
+            methods[name] = ReaderCls(conn, table)
+        else:
+            ReaderCls = type("%s_Reader" % method.upper(), (SQLSingleReader,), {"mapper": mapper})
+            methods[name] = cls(ReaderCls(conn, table))
+    if dct.get("external", False):
+        methods["external"] = create_external(conn)
+
     return methods
 
 
-if __name__ == '__main__':
-    conn = pymssql.connect("172.16.100.7", "bigfish01", "bigfish01@0514", "NWindDB")
-    reader = SQLSingleReader(conn, "dbo.ASHAREDESCRIPTION")
+def main():
+    import json
+    conf = json.load(open(r"C:\Users\bigfish01\Documents\Python Scripts\datautils\confs\mssql-conf-guojin.json"))
+    methods = load_conf(conf)
+    index_cons = methods["index_cons"]
+    print(index_cons(index_code="000016.SH"))
 
-    # print(reader._find_limits())
+
+if __name__ == '__main__':
+    main()
