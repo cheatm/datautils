@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import json
 
 
@@ -12,7 +13,13 @@ def create_map(frame):
 
 
 def main():
-    print(read(r"C:\Users\bigfish01\Documents\Python Scripts\datautils\name_map.xlsx"))
+    print(np.datetime64)
+    # print(read(r"C:\Users\bigfish01\Documents\Python Scripts\datautils\name_map.xlsx"))
+    data = pd.DataFrame("a", pd.date_range("2018-01-01", "2018-01-31"), columns=["a", "c", "d"])
+    data["b"] = 0
+    data.index.name="date"
+   
+    print(data.reset_index().select_dtypes(include=[np.object, np.number, np.datetime64]))
 
 if __name__ == '__main__':
     main()

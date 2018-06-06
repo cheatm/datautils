@@ -32,13 +32,19 @@ class SingleMapReader(SingleReader):
     def __call__(self, index=None, fields=None, **filters):
         reversed_mapper = {}
         if fields is None:
-            reversed_mapper = {value: key for key, value in self.mapper.items()}
+            pass
         elif isinstance(fields, Iterable) and not isinstance(fields, str):
-            reversed_mapper = {self.mapper.get(field, field): field for field in fields}
+            for field in fields:
+                if field in self.mapper:
+                    mapped = self.mapper[field]
+                    reversed_mapper[mapped] = field
             fields = [self.mapper.get(field, field) for field in fields]
+            
         else:
-            reversed_mapper[self.mapper.get(fields, fields)] = fields
-            fields = [self.mapper.get(fields, fields)]
+            if fields in self.mapper:
+                mapped = self.mapper[fields]
+                reversed_mapper[mapped] = fields
+                fields = mapped
         
         for key in list(filters):
             if key in self.mapper:
@@ -46,8 +52,9 @@ class SingleMapReader(SingleReader):
                 reversed_mapper[self.mapper[key]] = key
         
         result = self.read(fields, **filters)
-        return result.rename_axis(reversed_mapper, 1)
-    
+        r = result.rename_axis(reversed_mapper, 1)
+        return r
+
     def read(self, fields=None, **filters):
         pass
 

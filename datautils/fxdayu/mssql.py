@@ -2,6 +2,7 @@ import pymssql
 from datautils.sql import make_command
 from datautils.fxdayu.basic import SingleReader, MultiReader, single_fields_mapper, DailyReader, SingleMapReader
 import pandas as pd
+import numpy as np
 
 
 FIELDS_MAP = {}
@@ -56,7 +57,7 @@ class SQLSingleReader(SingleMapReader):
         fields = self.select_fields(fields)
         filters = self.select_filters(filters)
         command = make_command(self.table, fields, **filters)
-        return pd.read_sql(make_command(self.table, fields, **filters), self.conn)
+        return pd.read_sql(make_command(self.table, fields, **filters), self.conn).select_dtypes(include=[np.object, np.number])
 
 
 class TradeDateReader(SQLSingleReader):
@@ -101,9 +102,18 @@ class SecSuspReader(SQLSingleReader):
         return pd.concat([d1, d2], ignore_index=True)
     
 
-def create_external(conn):
+def create_external(conn, mapper):
+    external = {}
     tables = pd.read_sql("select TABLE_SCHEMA,TABLE_NAME from information_schema.TABLES", conn)
-    return {table: SQLSingleReader(conn, table) for table in (tables.TABLE_SCHEMA + "." + tables.TABLE_NAME)}
+    for table in (tables.TABLE_SCHEMA + "." + tables.TABLE_NAME):
+        if table in mapper:
+            cls = type("%s_Reader" % table.replace(".", "_").upper(), (SQLSingleReader,), {"mapper": mapper[table]})
+        else:
+            cls = SQLSingleReader
+        external[table] = cls(conn, table)
+        
+    return external
+    # return {table: SQLSingleReader(conn, table) for table in (tables.TABLE_SCHEMA + "." + tables.TABLE_NAME)}
         
 
 SPECIAL_CLS = {
@@ -115,17 +125,22 @@ SPECIAL_CLS = {
 
 
 def load_conf(dct):
+    from datautils.tools.field_mapper import read
+
     methods = {}
     cp = dct["connection_params"]
     conn = pymssql.connect(*cp)
     db_map = dct["db_map"]
-    fields_map = dct.get("fields_map", {})
+    if 'map_file' in dct:
+        fields_map = read(dct["map_file"])
+    else:
+        fields_map = {}
     for method, table in db_map.items():
         if len(table) == 0:
             continue
         name = method.lower()
         cls = SPECIAL_CLS.get(name, SQLSingleReader)
-        mapper = fields_map.get(method, {})
+        mapper = fields_map.get(table, {})
         if issubclass(cls, SingleMapReader):
             ReaderCls = type("%s_Reader" % method.upper(), (cls,), {"mapper": mapper})
             methods[name] = ReaderCls(conn, table)
@@ -133,7 +148,7 @@ def load_conf(dct):
             ReaderCls = type("%s_Reader" % method.upper(), (SQLSingleReader,), {"mapper": mapper})
             methods[name] = cls(ReaderCls(conn, table))
     if dct.get("external", False):
-        methods["external"] = create_external(conn)
+        methods["external"] = create_external(conn, fields_map)
 
     return methods
 
@@ -142,8 +157,11 @@ def main():
     import json
     conf = json.load(open(r"C:\Users\bigfish01\Documents\Python Scripts\datautils\confs\mssql-conf-guojin.json"))
     methods = load_conf(conf)
-    index_cons = methods["index_cons"]
-    print(index_cons(index_code="000016.SH"))
+    trade_cal = methods["trade_cal"]
+    print(trade_cal(fields="trade_date"))
+    # external = methods["external"]
+    # table = external["dbo.AINDEXEODPRICES"]
+    # print(table(fields=["symbol", "trade_date", "open", "close"], symbol="000016.SH", trade_date=("20180101", "20180131")))
 
 
 if __name__ == '__main__':
