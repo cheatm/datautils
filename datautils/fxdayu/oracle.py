@@ -46,7 +46,7 @@ def iter_filters(**filters):
 
 def read_oracle(cursor, name, fields, **filters):
     command = make_command(name, fields, **filters)
-    print(command)
+    # print(command)
     try:
         cursor.execute(command)
         r = cursor.fetchall()
@@ -62,6 +62,8 @@ class OracleSingleReader(SingleMapReader):
     DATE = "TDATE"
     SYMBOL = "SYMBOLCODE"
     VALUE = "RAWVALUE"
+    DTYPE = "PROCESSEDTYPE"
+    DEFAULT_DTYPE = "A" 
 
     def __init__(self, conn, db):
         self.conn = conn
@@ -80,14 +82,20 @@ class OracleSingleReader(SingleMapReader):
         return pd.DataFrame(dct).reset_index()
     
     def _iter_read(self, cursor, fields, filters):
-        for field in fields :
-            try:
+        for field in fields :     
+            try: 
                 yield field, self._read(cursor, field, **filters)
             except Exception as e:
                 logging.error("read Oracle | %s | %s | %s | %s", self.db, field, filters, e)
                 
 
     def _read(self, cursor, field, **filters):
+        real_field = field.split("-", 1)
+        if len(real_field)  == 2:
+            field = real_field[0]
+            filters[self.DTYPE] = real_field[1]
+        else:
+            filters[self.DTYPE] = self.DEFAULT_DTYPE
         field = ".".join((self.db, field))
         data = read_oracle(cursor, field, self.COLUMNS, **filters)
         return data.drop_duplicates(self.INDEX).set_index(self.INDEX)[self.VALUE]
@@ -123,3 +131,4 @@ def get_reader_cls(name, dct):
     attrs["mapper"] = fields_map
     attrs.update(table_structure)
     return type("%sReader" % name, (OracleSingleReader,), attrs)
+
