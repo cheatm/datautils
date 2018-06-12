@@ -15,10 +15,19 @@
         }
     },
     "hdf": {
-        "root": "D:/jaqs-data/daily",
-        "views": ["factor", "daily_indicator", "daily", "sec_adj_factor"],
         "index": "/date_flag",
         "column": "/symbol_flag",
-        "exclude": ["trade_date", "symbol"]
+        "exclude": ["trade_date", "symbol"],
+        "map_file": "C:/Users/bigfish01/Documents/Python Scripts/datautils/name_map.xlsx",
+        "views": {
+            "daily_indicator": "C:/Users/bigfish01/Desktop/data1/dbo.ASHAREEODDERIVATIVEINDICATOR",
+            "daily": "C:/Users/bigfish01/Desktop/data1/dbo.ASHAREEODPRICES",
+            "sec_adj_factor": ["C:/Users/bigfish01/Desktop/data1/dbo.ASHAREEODPRICES/S_DQ_ADJFACTOR.hd5"]
+        },
+        "view_map":{
+            "daily_indicator": "dbo.ASHAREEODDERIVATIVEINDICATOR",
+            "daily": "dbo.ASHAREEODPRICES",
+            "sec_adj_factor": "dbo.ASHAREEODPRICES"
+        }
     }
 }

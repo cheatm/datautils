@@ -20,6 +20,3 @@ def main():
     data.index.name="date"
    
     print(data.reset_index().select_dtypes(include=[np.object, np.number, np.datetime64]))
-
-if __name__ == '__main__':
-    main()

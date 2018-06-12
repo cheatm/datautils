@@ -2,7 +2,7 @@ import pandas as pd
 import tables
 from collections import Iterable
 import os
-from datautils.fxdayu.basic import SingleReader, DailyReader
+from datautils.fxdayu.basic import SingleReader, DailyReader, SingleMapReader
 import logging
 from datautils.sql import make_command
 import sqlite3
@@ -10,7 +10,37 @@ import sqlite3
 
 class HDFStructure(object):
 
-    def __init__(self, hdf_file, value_name, index_name="/date_flag", column_name="/symbol_flag"):
+    index_name = "/date_flag"
+    column_name="/symbol_flag"
+    value_name="/data"
+
+    @classmethod
+    def rename_axis(cls, index, column):
+        if index == cls.index_name and (column == cls.column_name):
+            return cls
+        else:
+            return type("Rename_HDFStructure", (cls,), {"index_name": index, "column_name": column})
+
+    @classmethod
+    def from_root(cls, root):
+        files = []
+        for filename in os.listdir(root):
+            
+            if filename.endswith(".hd5"):
+                files.append(os.path.join(root, filename))
+        
+        return cls.from_files(*files)
+    
+    @classmethod
+    def from_files(cls, *files):
+        structures = {}
+        for path in files:
+            filename = os.path.split(path)[1]
+            name = filename[:-4].strip("_")
+            structures[name] = cls(path)
+        return structures
+        
+    def __init__(self, hdf_file):
         if isinstance(hdf_file, tables.File):
             self.file = hdf_file
             self.file_name = self.file.filename
@@ -18,20 +48,14 @@ class HDFStructure(object):
             self.file_name = hdf_file
             self.file = tables.File(self.file_name, "r")
         
-        self.index_name = index_name
-        self.index = self._read_index(index_name).map(str)
-        self.column_name = column_name
-        self.column = self._read_index(column_name).map(lambda b: b.decode())
-        self.value_name = value_name
+        self.index = self._read_index(self.index_name).map(lambda b: b.decode())
+        self.column = self._read_index(self.column_name).map(lambda b: b.decode())
 
     def refresh(self):
         if self.file.isopen:
             self.file.close()
         self.__init__(
-            self.file_name,
-            self.value_name,
-            self.index_name,
-            self.column_name
+            self.file_name
         )
 
     def __del__(self):
@@ -43,7 +67,7 @@ class HDFStructure(object):
         if self.file.isopen:
             return self.file.get_node(self.value_name)
         else:
-            self.__init__(self.file_name, self.value_name, self.index_name, self.column_name)
+            self.__init__(self.file_name)
             return self.value
     
     def read(self, index, columns):
@@ -54,6 +78,7 @@ class HDFStructure(object):
             logging.error("read hdf locate fail | %s | %s | %s | %s", self.file_name, index, columns, e)
             return pd.DataFrame()
         data = self.value[index_loc, column_loc]
+        dtype = data.dtype
         return pd.DataFrame(data, idx, col)
 
     def _read_index(self, name):
@@ -86,47 +111,28 @@ class HDFStructure(object):
 
 from threading import Timer, RLock
 from time import time
+import os
 
 
-class HDFDaily(SingleReader):
 
-    def __init__(self, root, index, column, exclude=tuple()):
-        self.root = root
-        self.files = {}
-        for filename in os.listdir(self.root):
-            if filename.endswith(".hd5"):
-                name = filename[:-4].strip("_")
-                v_name = "/" + name
-                self.files[name] = HDFStructure(os.path.join(self.root, filename), v_name, index, column)
-        for name in exclude:
-            s = self.files.pop(name, None)
-            if s:
-                s.file.close()
-        self.running = False
-        self.last_refresh_time = time()
-        self.timer = Timer(1, self.loop)
+class HDFDaily(SingleMapReader):
+
+    @classmethod
+    def mapped(cls, tag, mapper):
+        return type("%s_HDF" % tag, (cls,), {"mapper": mapper})
+
+    def __init__(self, files):
+        self.files = files
         self.lock = RLock()
+        self.symbol = self.mapper.get("symbol", "symbol")
+        self.date = self.mapper.get("trade_date", "trade_date")
     
-    def start(self):
-        self.running = True
-        self.timer.start()
+    # def __call__(self, index=None, fields=None, **filters):
+    #     return self.read(fields, **filters)
     
-    def stop(self):
-        self.running = False
-    
-    def loop(self):
-        if self.running:
-            if time() - self.last_refresh_time >= 3600:
-                self.refresh()
-                self.last_refresh_time = time()
-            self.timer = Timer(1, self.loop)
-            self.timer.start()
-        else:
-            self.timer.cancel()
-
-    def __call__(self, index=None, fields=None, **filters):
-        symbol = filters.get("symbol", None)
-        dates = filters.get("trade_date", (None, None))
+    def read(self, fields=None, **filters):
+        symbol = filters.get(self.symbol, None)
+        dates = filters.get(self.date, (None, None))
         dates = slice(*dates)
         if fields is None:
             fields = list(self.files.keys())
@@ -150,9 +156,13 @@ class HDFDaily(SingleReader):
                 dct[field] = data
         self.lock.release()
         pn = pd.Panel.from_dict(dct)
-        pn.major_axis.name = "trade_date"
-        pn.minor_axis.name = "symbol"
-        return pn.to_frame(False).reset_index()
+        pn.major_axis.name = self.date
+        pn.minor_axis.name = self.symbol
+        result = pn.to_frame(False)
+        for name in [self.date, self.symbol]:
+            if name in result:
+                result.pop(name)
+        return result.reset_index()
 
     def refresh(self):
         logging.warning("HDF start refresh")
@@ -161,6 +171,39 @@ class HDFDaily(SingleReader):
             structure.refresh()
         self.lock.release()
         logging.warning("HDF refresh accomplish")
+
+
+class HDFScanner(object):
+
+    def __init__(self, views):
+        self.running = False
+        self.last_refresh_time = time()
+        self.timer = Timer(1, self.loop)
+        self.lock = RLock()
+        self.views = views
+    
+    def start(self):
+        self.running = True
+        self.timer.start()
+    
+    def stop(self):
+        self.running = False
+    
+    def loop(self):
+        if self.running:
+            if time() - self.last_refresh_time >= 3600:
+                self.refresh()
+                self.last_refresh_time = time()
+            self.timer = Timer(1, self.loop)
+            self.timer.start()
+        else:
+            self.timer.cancel()
+    
+    def refresh(self):
+        for view_name, hdf_view in self.views.items():
+            logging.warning("Refresh %s", view_name)
+            hdf_view.refresh()
+    
 
 class DailyPrice(DailyReader):
 
@@ -204,6 +247,7 @@ class LocalSqlite(SingleReader):
         conn.close()
         return r
 
+
 def load_conf(dct):
     r = {}
     if "sqlite" in dct:
@@ -218,16 +262,68 @@ def load_sqlite(dct):
     return {key: LocalSqlite(sqlite_file, table) for key, table in dct.get("table_map", {}).items()}
 
 
-def load_hdf(dct):
+def load_hdf(conf):
+    from datautils.tools.field_mapper import read
+
+    if 'map_file' in conf:
+        fields_map = read(conf["map_file"])
+
     r = {}
-    root = dct.get("root", "daily")
-    hdf = HDFDaily(root, dct.get("index", "/date_flag"), dct.get("column", "/symbol_flag"), dct.get("exclude", []))
-    hdf.start()
-    views = set(dct.get("views", []))
-    if "daily" in views:
-        views.remove("daily")
-        r["daily"] = DailyPrice(hdf)
-    for view in views:
-        r[view] = hdf
+    views = conf.get("views", {})
+    view_map = conf.get("view_map", {})
+    index = conf.get("index", "/date_flag")
+    column = conf.get("column", "/symbol_flag")
+
+    Structure = HDFStructure.rename_axis(index, column)
+
+    for view, root in views.items():
+
+        mapper = fields_map.get(view_map.get(view, view), {})
+        if mapper:
+            cls = HDFDaily.mapped(view, mapper)
+        else:
+            cls = HDFDaily       
+        if isinstance(root, str): 
+            files = Structure.from_root(root)
+        elif isinstance(root, list):
+            files = Structure.from_files(*root)
+        else:
+            continue
+        r[view] = cls(files)
+    
+    scanner = HDFScanner(r.copy())
+    scanner.start()
+    if "daily" in r:
+        r["daily"] = DailyPrice(r.pop("daily"))
     return r    
 
+
+def main():
+    conf = {
+        "index": "/date_flag",
+        "column": "/symbol_flag",
+        "exclude": ["trade_date", "symbol"],
+        "map_file": "C:/Users/bigfish01/Documents/Python Scripts/datautils/name_map.xlsx",
+        "views": {
+            "daily_indicator": "C:/Users/bigfish01/Desktop/data1/dbo.ASHAREEODDERIVATIVEINDICATOR",
+            "daily": "C:/Users/bigfish01/Desktop/data1/dbo.ASHAREEODPRICES",
+            "sec_adj_factor": ["C:/Users/bigfish01/Desktop/data1/dbo.ASHAREEODPRICES/S_DQ_ADJFACTOR.hd5"]
+        },
+        "view_map":{
+            "daily_indicator": "dbo.ASHAREEODDERIVATIVEINDICATOR",
+            "daily": "dbo.ASHAREEODPRICES",
+            "sec_adj_factor": "dbo.ASHAREEODPRICES"
+        }
+    }
+    methods = load_hdf(conf)
+    # daily_indicator = methods["daily_indicator"]
+    # r = daily_indicator(fields=["pe", "pb"], symbol="600000.SH", trade_date=("20180101", "20180131"))
+    # daily = methods["daily"]
+    # r = daily("600000.SH", "20180101", "20180131")
+    adj = methods["sec_adj_factor"]
+    r = adj(fields=["symbol", "trade_date", "adjust_factor"], symbol="600000.SH", trade_date=(None, "20180301"))
+    print(r)
+    
+
+if __name__ == '__main__':
+    main()

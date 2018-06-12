@@ -38,13 +38,13 @@ class SingleMapReader(SingleReader):
                 if field in self.mapper:
                     mapped = self.mapper[field]
                     reversed_mapper[mapped] = field
-            fields = [self.mapper.get(field, field) for field in fields]
+            fields = set([self.mapper.get(field, field) for field in fields])
             
         else:
             if fields in self.mapper:
                 mapped = self.mapper[fields]
                 reversed_mapper[mapped] = fields
-                fields = mapped
+                fields = {mapped}
         
         for key in list(filters):
             if key in self.mapper:
