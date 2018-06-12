@@ -49,3 +49,13 @@ def init_mongodb_example():
             "MONGODB_URI": conf.MONGODB_URI
         }
     )    
+
+
+def main():
+    conf.MONGODB_URI = "192.168.0.102,192.168.0.101"
+    init_mongodb_example()
+    data = api.daily(["000001.SZ"], 20180101, 20180131, set())
+    print(data)
+
+if __name__ == '__main__':
+    main()

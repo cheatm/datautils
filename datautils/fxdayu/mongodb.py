@@ -165,8 +165,20 @@ class DailyDBReader(DailyReader):
         self.reader = RenameDBReader(db)
 
     def __call__(self, symbols, start, end, fields=None):
-        return self.reader(symbols, "datetime", fields,
-                           datetime=(convert2date(start, hour=15), convert2date(end, hour=15)))
+        if isinstance(fields, set) and ("vwap" in fields):
+            fields.add("volume")
+            fields.add("turnover")
+            
+        dct = self.reader(symbols, "datetime", fields,
+                          datetime=(convert2date(start, hour=15), convert2date(end, hour=15)))
+        pn = pd.Panel.from_dict(dct).rename_axis(date2int, 1)
+        pn.items.name = "symbol"
+        pn.major_axis.name = "trade_date"
+        frame =  pn.transpose(2, 1, 0).to_frame(False)
+        if isinstance(fields, set) and ("vwap" in fields):
+            frame["vwap"] = frame["turnover"] / frame["volume"]
+        frame["trade_status"] = 1
+        return frame.reset_index()
 
 
 class BarDBReader(BarReader):

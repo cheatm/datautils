@@ -6,6 +6,7 @@ from datautils.fxdayu.basic import SingleReader, DailyReader, SingleMapReader
 import logging
 from datautils.sql import make_command
 import sqlite3
+import numpy as np
 
 
 class HDFStructure(object):
@@ -48,7 +49,9 @@ class HDFStructure(object):
             self.file_name = hdf_file
             self.file = tables.File(self.file_name, "r")
         
-        self.index = self._read_index(self.index_name).map(lambda b: b.decode())
+        self.index = self._read_index(self.index_name)
+        if self.index.dtype == np.object:
+            self.index = self.index.map(lambda b: int(b))
         self.column = self._read_index(self.column_name).map(lambda b: b.decode())
 
     def refresh(self):
@@ -75,7 +78,7 @@ class HDFStructure(object):
             index_loc, idx = self._loc(self.index, index)
             column_loc, col = self._loc(self.column, columns)
         except Exception as e:
-            logging.error("read hdf locate fail | %s | %s | %s | %s", self.file_name, index, columns, e)
+            logging.error("read hdf local fail | %s | %s | %s | %s", self.file_name, index, columns, e)
             return pd.DataFrame()
         data = self.value[index_loc, column_loc]
         dtype = data.dtype
@@ -132,7 +135,7 @@ class HDFDaily(SingleMapReader):
     
     def read(self, fields=None, **filters):
         symbol = filters.get(self.symbol, None)
-        dates = filters.get(self.date, (None, None))
+        dates = [int(date) if date else date for date in filters.get(self.date, (None, None))]
         dates = slice(*dates)
         if fields is None:
             fields = list(self.files.keys())
@@ -219,7 +222,10 @@ class DailyPrice(DailyReader):
             fields = self.limits.intersection(set(fields))
         else:
             fields = self.limits.intersection({fields})
-        return self.reader(fields=fields, symbol=symbols, trade_date=(str(start), str(end)))
+        data = self.reader(fields=fields, symbol=symbols, trade_date=(start, end))
+        if "trade_status" not in data.columns:
+            data["trade_status"] = 1
+        return data
 
 
 class LocalSqlite(SingleReader):
@@ -267,6 +273,8 @@ def load_hdf(conf):
 
     if 'map_file' in conf:
         fields_map = read(conf["map_file"])
+    else:
+        fields_map = {}
 
     r = {}
     views = conf.get("views", {})
@@ -296,34 +304,3 @@ def load_hdf(conf):
     if "daily" in r:
         r["daily"] = DailyPrice(r.pop("daily"))
     return r    
-
-
-def main():
-    conf = {
-        "index": "/date_flag",
-        "column": "/symbol_flag",
-        "exclude": ["trade_date", "symbol"],
-        "map_file": "C:/Users/bigfish01/Documents/Python Scripts/datautils/name_map.xlsx",
-        "views": {
-            "daily_indicator": "C:/Users/bigfish01/Desktop/data1/dbo.ASHAREEODDERIVATIVEINDICATOR",
-            "daily": "C:/Users/bigfish01/Desktop/data1/dbo.ASHAREEODPRICES",
-            "sec_adj_factor": ["C:/Users/bigfish01/Desktop/data1/dbo.ASHAREEODPRICES/S_DQ_ADJFACTOR.hd5"]
-        },
-        "view_map":{
-            "daily_indicator": "dbo.ASHAREEODDERIVATIVEINDICATOR",
-            "daily": "dbo.ASHAREEODPRICES",
-            "sec_adj_factor": "dbo.ASHAREEODPRICES"
-        }
-    }
-    methods = load_hdf(conf)
-    # daily_indicator = methods["daily_indicator"]
-    # r = daily_indicator(fields=["pe", "pb"], symbol="600000.SH", trade_date=("20180101", "20180131"))
-    # daily = methods["daily"]
-    # r = daily("600000.SH", "20180101", "20180131")
-    adj = methods["sec_adj_factor"]
-    r = adj(fields=["symbol", "trade_date", "adjust_factor"], symbol="600000.SH", trade_date=(None, "20180301"))
-    print(r)
-    
-
-if __name__ == '__main__':
-    main()
