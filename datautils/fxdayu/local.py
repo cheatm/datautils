@@ -311,14 +311,15 @@ def load_hdf(conf):
             cls = HDFDaily       
         r[view] = cls(root, Structure)
     
+    scanner = HDFScanner(r.copy())
+    scanner.start()
+    
     if conf.get("predefine", False):
         pdf = {}
         for view, method in r.items():
             pdf[view] = method.predefine
         r["predefine"] = pdf
 
-    scanner = HDFScanner(r.copy())
-    scanner.start()
     if "daily" in r:
         r["daily"] = DailyPrice(r.pop("daily"))
     return r    
