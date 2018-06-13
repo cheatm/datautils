@@ -127,6 +127,28 @@ class Predefine(SingleReader):
                     yield name, field
 
 
+view_map = {
+    "daily_indicator": "lb.secDailyIndicator",
+    "api_list": "jz.apiList",
+    "api_param": "jz.apiParam",
+    "inst_info": "jz.instrumentInfo",
+    "trade_cal": "jz.secTradeCal",
+    "balance_sheet": "lb.balanceSheet",
+    "cash_flow": "lb.cashFlow",
+    "fin_indicator": "lb.finIndicator",
+    "income": "lb.income",
+    "index_cons": "lb.indexCons",
+    "index_weight_range": "lb.indexWeightRange",
+    "profit_express": "lb.profitExpress",
+    "s_state": "lb.sState",
+    "sec_dividend": "lb.secDividend",
+    "sec_industry": "lb.secIndustry",
+    "sec_restricted": "lb.secRestricted",
+    "sec_susp": "lb.secSusp",
+    "sec_adj_factor": "lb.secAdjFactor"
+}
+
+
 class DataAPIBase(object):
 
     # 本地已有数据接口
@@ -206,6 +228,9 @@ class DataAPI(DataAPIBase):
             module = importlib.import_module("datautils.fxdayu.%s" % _type)
             readers = module.load_conf(single)
             predefine = readers.pop("predefine", {})
+            for key in list(predefine):
+                if key in view_map:
+                    predefine[view_map[key]] = predefine.pop(key)
             self.predefine.update(predefine)
             for key, reader in readers.items():
                 setattr(self, key, reader)

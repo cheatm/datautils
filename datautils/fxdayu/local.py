@@ -42,13 +42,20 @@ class HDFStructure(object):
         return structures
         
     def __init__(self, hdf_file):
+        self.init(hdf_file)
+        self.m_time = os.path.getmtime(self.file_name)
+        self.load_indexes()
+        self.file.close()
+
+    def init(self, hdf_file):
         if isinstance(hdf_file, tables.File):
             self.file = hdf_file
             self.file_name = self.file.filename
         elif isinstance(hdf_file, str):
             self.file_name = hdf_file
             self.file = tables.File(self.file_name, "r")
-        
+
+    def load_indexes(self):
         self.index = self._read_index(self.index_name)
         if self.index.dtype == np.object:
             self.index = self.index.map(lambda b: int(b))
@@ -65,14 +72,16 @@ class HDFStructure(object):
         if self.file.isopen:
             self.file.close()
 
-    @property
-    def value(self):
-        if self.file.isopen:
-            return self.file.get_node(self.value_name)
-        else:
-            self.__init__(self.file_name)
-            return self.value
-    
+    def value(self, idx, col):
+        self.init(self.file_name)
+        m_time = os.path.getmtime(self.file_name)
+        if m_time > self.m_time:
+            self.m_time = m_time
+            self.load_indexes()
+        data = self.file.get_node(self.value_name)[idx, col]
+        self.file.close()
+        return data
+
     def read(self, index, columns):
         try:
             index_loc, idx = self._loc(self.index, index)
@@ -80,8 +89,7 @@ class HDFStructure(object):
         except Exception as e:
             logging.error("read hdf local fail | %s | %s | %s | %s", self.file_name, index, columns, e)
             return pd.DataFrame()
-        data = self.value[index_loc, column_loc]
-        dtype = data.dtype
+        data = self.value(index_loc, column_loc)
         return pd.DataFrame(data, idx, col)
 
     def _read_index(self, name):
@@ -117,22 +125,33 @@ from time import time
 import os
 
 
-
 class HDFDaily(SingleMapReader):
 
     @classmethod
     def mapped(cls, tag, mapper):
         return type("%s_HDF" % tag, (cls,), {"mapper": mapper})
 
-    def __init__(self, files):
-        self.files = files
+    def __init__(self, root, cls):
         self.lock = RLock()
+        self.cls = cls
+        self.root = root
+        self.files = self.gen_files()
         self.symbol = self.mapper.get("symbol", "symbol")
         self.date = self.mapper.get("trade_date", "trade_date")
     
-    # def __call__(self, index=None, fields=None, **filters):
-    #     return self.read(fields, **filters)
-    
+    def predefine(self):
+        return set(self.files)
+
+    def gen_files(self):
+        root = self.root
+        Structure = self.cls
+        if isinstance(root, str): 
+            return Structure.from_root(root)
+        elif isinstance(root, list):
+            return Structure.from_files(*root)
+        else:
+            return {}
+
     def read(self, fields=None, **filters):
         symbol = filters.get(self.symbol, None)
         dates = [int(date) if date else date for date in filters.get(self.date, (None, None))]
@@ -170,8 +189,7 @@ class HDFDaily(SingleMapReader):
     def refresh(self):
         logging.warning("HDF start refresh")
         self.lock.acquire()
-        for structure in self.files.values():
-            structure.refresh()
+        self.files = self.gen_files()
         self.lock.release()
         logging.warning("HDF refresh accomplish")
 
@@ -291,14 +309,14 @@ def load_hdf(conf):
             cls = HDFDaily.mapped(view, mapper)
         else:
             cls = HDFDaily       
-        if isinstance(root, str): 
-            files = Structure.from_root(root)
-        elif isinstance(root, list):
-            files = Structure.from_files(*root)
-        else:
-            continue
-        r[view] = cls(files)
+        r[view] = cls(root, Structure)
     
+    if conf.get("predefine", False):
+        pdf = {}
+        for view, method in r.items():
+            pdf[view] = method.predefine
+        r["predefine"] = pdf
+
     scanner = HDFScanner(r.copy())
     scanner.start()
     if "daily" in r:
