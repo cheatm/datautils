@@ -23,7 +23,11 @@ class SQLSingleReader(SingleMapReader):
         self.table = table
         self._limits = set()
     
-    @property
+    def predefine(self):
+        limits = set(self.mapper)
+        limits.update(self.limits())
+        return limits
+    
     def limits(self):
         if self._limits:
             return self._limits
@@ -47,10 +51,10 @@ class SQLSingleReader(SingleMapReader):
             fields = set(fields)
         else:
             fields = {fields}
-        return self.limits.intersection(fields)
+        return self.limits().intersection(fields)
     
     def select_filters(self, filters):
-        fields = self.limits.intersection(set(filters))
+        fields = self.limits().intersection(set(filters))
         return {name: filters[name] for name in fields}
 
     def read(self, fields=None, **filters):
@@ -149,19 +153,34 @@ def load_conf(dct):
             methods[name] = cls(ReaderCls(conn, table))
     if dct.get("external", False):
         methods["external"] = create_external(conn, fields_map)
+    
+    if dct.get("predefine", False):
+        view_map = dct.get('view_map', {})
+        predefine = {}
+        for key, method in methods.items():
+            view = view_map.get(key, key)
+            if not isinstance(method, SQLSingleReader):
+                if hasattr(method, "reader"):
+                    method = method.reader
+                else:
+                    continue
+            predefine[view] = method.limits
+        
+        for key, method in methods.get("external", {}).items():
+            predefine[key] = method.limits
+
+        methods["predefine"] = predefine
 
     return methods
 
 
 def main():
     import json
-    conf = json.load(open(r"C:\Users\bigfish01\Documents\Python Scripts\datautils\confs\mssql-conf-guojin.json"))
-    methods = load_conf(conf)
-    trade_cal = methods["trade_cal"]
-    print(trade_cal(fields="trade_date"))
-    # external = methods["external"]
-    # table = external["dbo.AINDEXEODPRICES"]
-    # print(table(fields=["symbol", "trade_date", "open", "close"], symbol="000016.SH", trade_date=("20180101", "20180131")))
+    from datautils.fxdayu.basic import DataAPI
+    conf = json.load(open(r"C:\Users\bigfish01\Documents\Python Scripts\datautils\confs\mixed-conf.json"))
+    api = DataAPI(conf[1])
+    r = api.predefine()
+    print(pd.DataFrame(r))
 
 
 if __name__ == '__main__':
