@@ -22,10 +22,15 @@ class SQLSingleReader(SingleMapReader):
         self.conn = conn
         self.table = table
         self._limits = set()
+        self.limits()
+        for limit in self._limits:
+            self.mapper["%s.%s" % (self.table, limit)] = limit
     
     def predefine(self):
         limits = set(self.mapper)
-        limits.update(self.limits())
+        limits.update(set(self.mapper.values()))
+        limits.discard("trade_date")
+        limits.discard("symbol")
         return limits
     
     def limits(self):
@@ -164,10 +169,10 @@ def load_conf(dct):
                     method = method.reader
                 else:
                     continue
-            predefine[view] = method.limits
+            predefine[view] = method.predefine
         
         for key, method in methods.get("external", {}).items():
-            predefine[key] = method.limits
+            predefine[key] = method.predefine
 
         methods["predefine"] = predefine
 
@@ -179,8 +184,8 @@ def main():
     from datautils.fxdayu.basic import DataAPI
     conf = json.load(open(r"C:\Users\bigfish01\Documents\Python Scripts\datautils\confs\mixed-conf.json"))
     api = DataAPI(conf[1])
-    r = api.predefine()
-    print(pd.DataFrame(r))
+    method = api.external["dbo.ASHAREMONEYFLOW"]
+    print(method(symbol="000001.SZ", trade_date=("20180101", None)))
 
 
 if __name__ == '__main__':

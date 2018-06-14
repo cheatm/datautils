@@ -11,7 +11,9 @@
             "index_cons": "[lb.indexCons]",
             "profit_express": "[lb.profitExpress]",
             "sec_dividend": "[lb.secDividend]",
-            "sec_industry": "[lb.secIndustry]"
+            "sec_industry": "[lb.secIndustry]",
+            "index_weight_range": "[lb.indexWeightRange]",
+            "inst_info": "[jz.instrumentInfo]"
         }
     },
     "hdf": {
@@ -20,9 +22,9 @@
         "exclude": ["trade_date", "symbol"],
         "map_file": "C:/Users/bigfish01/Documents/Python Scripts/datautils/name_map.xlsx",
         "views": {
-            "daily_indicator": "C:/Users/bigfish01/Desktop/data1/dbo.ASHAREEODDERIVATIVEINDICATOR",
-            "daily": "C:/Users/bigfish01/Desktop/data1/dbo.ASHAREEODPRICES",
-            "sec_adj_factor": ["C:/Users/bigfish01/Desktop/data1/dbo.ASHAREEODPRICES/S_DQ_ADJFACTOR.hd5"]
+            "daily_indicator": "D:/hdf5_data/dbo.ASHAREEODDERIVATIVEINDICATOR",
+            "daily": "C:/Users/bigfish01/Desktop/data/dbo.ASHAREEODPRICES",
+            "sec_adj_factor": ["C:/Users/bigfish01/Desktop/data/dbo.ASHAREEODPRICES/S_DQ_ADJFACTOR.hd5"]
         },
         "view_map":{
             "daily_indicator": "dbo.ASHAREEODDERIVATIVEINDICATOR",
