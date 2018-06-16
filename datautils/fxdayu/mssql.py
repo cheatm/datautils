@@ -25,12 +25,10 @@ class SQLSingleReader(SingleMapReader):
         self.limits()
         for limit in self._limits:
             self.mapper["%s.%s" % (self.table, limit)] = limit
-    
+        
     def predefine(self):
-        limits = set(self.mapper)
+        limits = set(self.mapper.keys())
         limits.update(set(self.mapper.values()))
-        limits.discard("trade_date")
-        limits.discard("symbol")
         return limits
     
     def limits(self):
@@ -66,7 +64,7 @@ class SQLSingleReader(SingleMapReader):
         fields = self.select_fields(fields)
         filters = self.select_filters(filters)
         command = make_command(self.table, fields, **filters)
-        return pd.read_sql(make_command(self.table, fields, **filters), self.conn).select_dtypes(include=[np.object, np.number])
+        return pd.read_sql(make_command(self.table, fields, **filters), self.conn).select_dtypes(include=[np.object, np.number]).fillna(0)
 
 
 class TradeDateReader(SQLSingleReader):
@@ -135,6 +133,7 @@ SPECIAL_CLS = {
 
 def load_conf(dct):
     from datautils.tools.field_mapper import read
+    from datautils.fxdayu.basic import view_map
 
     methods = {}
     cp = dct["connection_params"]
@@ -160,7 +159,6 @@ def load_conf(dct):
         methods["external"] = create_external(conn, fields_map)
     
     if dct.get("predefine", False):
-        view_map = dct.get('view_map', {})
         predefine = {}
         for key, method in methods.items():
             view = view_map.get(key, key)
@@ -173,7 +171,8 @@ def load_conf(dct):
         
         for key, method in methods.get("external", {}).items():
             predefine[key] = method.predefine
-
+        for name in dct.get("exclude", []):
+            predefine.pop(name, None)
         methods["predefine"] = predefine
 
     return methods
