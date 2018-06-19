@@ -156,7 +156,8 @@ def load_conf(dct):
             ReaderCls = type("%s_Reader" % method.upper(), (SQLSingleReader,), {"mapper": mapper})
             methods[name] = cls(ReaderCls(conn, table))
     if dct.get("external", False):
-        methods["external"] = create_external(conn, fields_map)
+        # methods["external"] = create_external(conn, fields_map)
+        methods.update(create_external(conn, fields_map))
     
     if dct.get("predefine", False):
         predefine = {}
@@ -169,8 +170,8 @@ def load_conf(dct):
                     continue
             predefine[view] = method.predefine
         
-        for key, method in methods.get("external", {}).items():
-            predefine[key] = method.predefine
+        # for key, method in methods.get("external", {}).items():
+        #     predefine[key] = method.predefine
         for name in dct.get("exclude", []):
             predefine.pop(name, None)
         methods["predefine"] = predefine

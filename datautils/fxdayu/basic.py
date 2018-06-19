@@ -149,6 +149,30 @@ view_map = {
 }
 
 
+VIEWS = {
+    'jz.apiList': 'api_list',
+    'jz.apiParam': 'api_param',
+    'jz.instrumentInfo': 'inst_info',
+    'jz.secTradeCal': 'trade_cal',
+    'lb.balanceSheet': 'balance_sheet',
+    'lb.cashFlow': 'cash_flow',
+    'lb.finIndicator': 'fin_indicator',
+    'lb.income': 'income',
+    'lb.indexCons': 'index_cons',
+    'lb.indexWeightRange': 'index_weight_range',
+    'lb.profitExpress': 'profit_express',
+    'lb.sState': 's_state',
+    'lb.secAdjFactor': 'sec_adj_factor',
+    'lb.secDailyIndicator': 'daily_indicator',
+    'lb.secDividend': 'sec_dividend',
+    'lb.secIndustry': 'sec_industry',
+    'lb.secRestricted': 'sec_restricted',
+    'lb.secSusp': 'sec_susp',
+    'daily': "daily",
+    'bar': 'bar'
+ }
+
+
 class DataAPIBase(object):
 
     # 本地已有数据接口
@@ -182,6 +206,8 @@ class DataAPIBase(object):
     daily = DailyReader()
     bar = BarReader()
 
+    methods = {}
+
     _external = {}
 
     def set_external(self, ext):
@@ -201,6 +227,14 @@ class DataAPIBase(object):
     
     external = property(get_external, set_external, del_external)
 
+    def __setitem__(self, key, value):
+        self.methods[key] = value
+        if key in VIEWS:
+            attr = VIEWS[key]
+            self.__setattr__(attr, value)
+        
+    def __getitem__(self, key):
+        return self.methods[key]
 
 class DataAPI(DataAPIBase):
 
@@ -233,7 +267,8 @@ class DataAPI(DataAPIBase):
                     predefine[view_map[key]] = predefine.pop(key)
             self.predefine.update(predefine)
             for key, reader in readers.items():
-                setattr(self, key, reader)
+                self[key] = reader
+                # setattr(self, key, reader)
 
 
 from functools import wraps
