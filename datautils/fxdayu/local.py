@@ -277,7 +277,9 @@ def load_conf(dct):
     if "sqlite" in dct:
         r.update(load_sqlite(dct["sqlite"]))
     if "hdf" in dct:
-        r.update(load_hdf(dct["hdf"]))
+        conf = dct["hdf"]
+        conf["map_file"] = dct.get("map_file", None)
+        r.update(load_hdf(conf))
     return r
 
 
@@ -288,7 +290,6 @@ def load_sqlite(dct):
 
 def load_hdf(conf):
     from datautils.tools.field_mapper import read
-
     if 'map_file' in conf:
         fields_map = read(conf["map_file"])
     else:

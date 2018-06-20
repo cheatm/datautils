@@ -124,10 +124,10 @@ def create_external(conn, mapper):
         
 
 SPECIAL_CLS = {
-    "trade_cal": TradeDateReader,
+    "jz.secTradeCal": TradeDateReader,
     "daily": SQLDailyReader,
-    "index_cons": IndexConsReader,
-    "sec_susp": SecSuspReader
+    "lb.indexCons": IndexConsReader,
+    "lb.secSusp": SecSuspReader
 }
 
 
@@ -146,15 +146,14 @@ def load_conf(dct):
     for method, table in db_map.items():
         if len(table) == 0:
             continue
-        name = method.lower()
-        cls = SPECIAL_CLS.get(name, SQLSingleReader)
+        cls = SPECIAL_CLS.get(method, SQLSingleReader)
         mapper = fields_map.get(table, {})
         if issubclass(cls, SingleMapReader):
-            ReaderCls = type("%s_Reader" % method.upper(), (cls,), {"mapper": mapper})
-            methods[name] = ReaderCls(conn, table)
+            ReaderCls = type("%s_Reader" % method.replace(".", "_"), (cls,), {"mapper": mapper})
+            methods[method] = ReaderCls(conn, table)
         else:
-            ReaderCls = type("%s_Reader" % method.upper(), (SQLSingleReader,), {"mapper": mapper})
-            methods[name] = cls(ReaderCls(conn, table))
+            ReaderCls = type("%s_Reader" % method.replace(".", "_"), (SQLSingleReader,), {"mapper": mapper})
+            methods[method] = cls(ReaderCls(conn, table))
     if dct.get("external", False):
         # methods["external"] = create_external(conn, fields_map)
         methods.update(create_external(conn, fields_map))
@@ -175,7 +174,6 @@ def load_conf(dct):
         for name in dct.get("exclude", []):
             predefine.pop(name, None)
         methods["predefine"] = predefine
-
     return methods
 
 
@@ -184,8 +182,7 @@ def main():
     from datautils.fxdayu.basic import DataAPI
     conf = json.load(open(r"C:\Users\bigfish01\Documents\Python Scripts\datautils\confs\mixed-conf.json"))
     api = DataAPI(conf[1])
-    method = api.external["dbo.ASHAREMONEYFLOW"]
-    print(method(symbol="000001.SZ", trade_date=("20180101", None)))
+    
 
 
 if __name__ == '__main__':

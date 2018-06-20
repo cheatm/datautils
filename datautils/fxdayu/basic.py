@@ -1,5 +1,6 @@
 import importlib
 from collections import Iterable
+import os
 
 
 class SingleReader(object):
@@ -236,6 +237,7 @@ class DataAPIBase(object):
     def __getitem__(self, key):
         return self.methods[key]
 
+
 class DataAPI(DataAPIBase):
 
     def __init__(self, *conf):
@@ -257,9 +259,14 @@ class DataAPI(DataAPIBase):
         可参考 datautils.fxdayu.mongodb.load_conf
         """
         self.conf = conf
+        fields_map = os.environ.get("MAPPER", None)
+
         for single in conf:
             _type = single["type"]
             module = importlib.import_module("datautils.fxdayu.%s" % _type)
+
+            if fields_map:
+                single["map_file"] = fields_map
             readers = module.load_conf(single)
             predefine = readers.pop("predefine", {})
             for key in list(predefine):
