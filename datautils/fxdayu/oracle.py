@@ -1,6 +1,8 @@
 import cx_Oracle
 import pandas as pd
 from datautils.fxdayu.basic import SingleReader, MultiReader, SingleMapReader
+from datetime import datetime
+# from datautils.sql import make_command
 import logging
 
 
@@ -20,7 +22,7 @@ REVERSED_FIELDS_MAP = reverse_map(FIELDS_MAP)
 def make_command(name, fields, **filters):
     template = "select %s from %s"
     where = "%s where %s"
-    fields = ",".join(fields)
+    fields = ",".join(fields) if fields else "*"
     command = template % (fields, name)
     if len(filters) == 0:
         return command
@@ -35,14 +37,20 @@ def iter_filters(**filters):
         elif isinstance(value, tuple):
             start, end = value[0], value[1]
             if start:
-                yield "%s>=%s" % (key, start)
+                yield "%s>=%s" % (key, convert(start))
             if end:
-                yield "%s<=%s" % (key, end)
+                yield "%s<=%s" % (key, convert(end))
         else:
             if isinstance(value, str):
                 value = "'%s'" % value
-            yield "%s = %s" % (key, value)
+            yield "%s=%s" % (key, convert(value))
 
+
+def convert(value):
+    if isinstance(value, datetime):
+        return "TO_DATE('%s', 'YYYY-MM-DD')" % value.strftime("%Y-%m-%d")
+    else:
+        return value
 
 def read_oracle(cursor, name, fields, **filters):
     command = make_command(name, fields, **filters)
@@ -109,6 +117,19 @@ class OracleSingleReader(SingleMapReader):
         return [self.SYMBOL, self.DATE]
 
 
+class OracalTableReader(SingleMapReader):
+
+    def __init__(self, conn, table):
+        self.conn = conn
+        self.table = table
+    
+    def read(self, fields=None, **filters):
+        if isinstance(fields, str):
+            fields = {fields}
+        command = make_command(self.table, fields, **filters)
+        return pd.read_sql(command, self.conn)
+
+
 def load_conf(dct):
     r = {}
     url = dct["url"]
@@ -132,3 +153,10 @@ def get_reader_cls(name, dct):
     attrs.update(table_structure)
     return type("%sReader" % name, (OracleSingleReader,), attrs)
 
+
+if __name__ == "__main__":
+    # connection =  cx_Oracle.Connection("bigfish/bigfish@172.16.55.54:1521/ORCL")
+    # reader = OracalTableReader(connection, "ZYYX2.CON_FORECAST_STK")
+    # print(reader(STOCK_CODE="603355"))
+    r = make_command("ZYYX2.CON_FORECAST_STK", None, STOCK_CODE="603355", CON_DATE=(datetime(2018, 1, 1), None))
+    print(r)

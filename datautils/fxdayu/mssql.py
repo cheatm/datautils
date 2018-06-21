@@ -45,7 +45,8 @@ class SQLSingleReader(SingleMapReader):
             TABLE_NAME=table_name,
             TABLE_SCHEMA=schema
         )
-        return set(pd.read_sql(cmd, self.conn)["COLUMN_NAME"])
+        data = set(pd.read_sql(cmd, self.conn.connection())["COLUMN_NAME"])
+        return data
 
     def select_fields(self, fields):
         if fields is None:
@@ -64,7 +65,10 @@ class SQLSingleReader(SingleMapReader):
         fields = self.select_fields(fields)
         filters = self.select_filters(filters)
         command = make_command(self.table, fields, **filters)
-        return pd.read_sql(make_command(self.table, fields, **filters), self.conn).select_dtypes(include=[np.object, np.number]).fillna(0)
+        with self.conn as conn:
+            data = pd.read_sql(command, conn).select_dtypes(include=[np.object, np.number]).fillna(0)
+            
+        return data
 
 
 class TradeDateReader(SQLSingleReader):
@@ -111,14 +115,14 @@ class SecSuspReader(SQLSingleReader):
 
 def create_external(conn, mapper):
     external = {}
-    tables = pd.read_sql("select TABLE_SCHEMA,TABLE_NAME from information_schema.TABLES", conn)
+
+    tables = pd.read_sql("select TABLE_SCHEMA,TABLE_NAME from information_schema.TABLES", conn.connection())
     for table in (tables.TABLE_SCHEMA + "." + tables.TABLE_NAME):
         if table in mapper:
             cls = type("%s_Reader" % table.replace(".", "_").upper(), (SQLSingleReader,), {"mapper": mapper[table]})
         else:
             cls = SQLSingleReader
         external[table] = cls(conn, table)
-        
     return external
     # return {table: SQLSingleReader(conn, table) for table in (tables.TABLE_SCHEMA + "." + tables.TABLE_NAME)}
         
@@ -131,13 +135,41 @@ SPECIAL_CLS = {
 }
 
 
+class MSSQKConControler(object):
+    
+    def __init__(self, *args , **kwargs):
+        self.args = args
+        self.kwargs = kwargs
+        self._con = None
+    
+    def __enter__(self):
+        self._con = pymssql.connect(*self.args, **self.kwargs)
+        return self._con
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._con.close()
+        self._con = None
+    
+    def connection(self):
+        if self._con is not None:
+            return self._con
+        else:
+            self._con = pymssql.connect(*self.args, **self.kwargs)
+            return self._con
+
+    def close(self):
+        if self._con is not None:
+            self._con.close
+        self._con = None
+
+
 def load_conf(dct):
     from datautils.tools.field_mapper import read
     from datautils.fxdayu.basic import view_map
 
     methods = {}
     cp = dct["connection_params"]
-    conn = pymssql.connect(*cp)
+    conn = MSSQKConControler(*cp)
     db_map = dct["db_map"]
     if 'map_file' in dct:
         fields_map = read(dct["map_file"])
@@ -174,6 +206,7 @@ def load_conf(dct):
         for name in dct.get("exclude", []):
             predefine.pop(name, None)
         methods["predefine"] = predefine
+    conn.close()
     return methods
 
 
@@ -186,4 +219,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    # main()
+    cc = MSSQKConControler()
+    with cc as c:
+        print(c)
