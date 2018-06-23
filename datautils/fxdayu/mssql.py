@@ -18,7 +18,8 @@ from collections import Iterable
 
 class SQLSingleReader(SingleMapReader):
 
-    def __init__(self, conn, table):
+    def __init__(self, conn, table, mapper=None):
+        super(SQLSingleReader, self).__init__(mapper)
         self.conn = conn
         self.table = table
         self._limits = set()
@@ -118,11 +119,7 @@ def create_external(conn, mapper):
 
     tables = pd.read_sql("select TABLE_SCHEMA,TABLE_NAME from information_schema.TABLES", conn.connection())
     for table in (tables.TABLE_SCHEMA + "." + tables.TABLE_NAME):
-        if table in mapper:
-            cls = type("%s_Reader" % table.replace(".", "_").upper(), (SQLSingleReader,), {"mapper": mapper[table]})
-        else:
-            cls = SQLSingleReader
-        external[table] = cls(conn, table)
+        external[table] = SQLSingleReader(conn, table, mapper.get(table, {}))
     return external
     # return {table: SQLSingleReader(conn, table) for table in (tables.TABLE_SCHEMA + "." + tables.TABLE_NAME)}
         
@@ -181,11 +178,9 @@ def load_conf(dct):
         cls = SPECIAL_CLS.get(method, SQLSingleReader)
         mapper = fields_map.get(table, {})
         if issubclass(cls, SingleMapReader):
-            ReaderCls = type("%s_Reader" % method.replace(".", "_"), (cls,), {"mapper": mapper})
-            methods[method] = ReaderCls(conn, table)
+            methods[method] = cls(conn, table, mapper)
         else:
-            ReaderCls = type("%s_Reader" % method.replace(".", "_"), (SQLSingleReader,), {"mapper": mapper})
-            methods[method] = cls(ReaderCls(conn, table))
+            methods[method] = cls(SQLSingleReader(conn, table, mapper))
     if dct.get("external", False):
         # methods["external"] = create_external(conn, fields_map)
         methods.update(create_external(conn, fields_map))

@@ -127,11 +127,9 @@ import os
 
 class HDFDaily(SingleMapReader):
 
-    @classmethod
-    def mapped(cls, tag, mapper):
-        return type("%s_HDF" % tag, (cls,), {"mapper": mapper})
-
-    def __init__(self, root, cls, view):
+    def __init__(self, root, cls, view, mapper=None):
+        super(HDFDaily, self).__init__(mapper)
+        self.default_values = set(self.mapper.values())
         self.lock = RLock()
         self.cls = cls
         self.root = root
@@ -143,7 +141,7 @@ class HDFDaily(SingleMapReader):
     def predefine(self):
         p = set()
         p.update(self.mapper.keys())
-        p.update(self.mapper.values())
+        p.update(self.default_values)
         return p
 
     def gen_files(self):
@@ -312,11 +310,7 @@ def load_hdf(conf):
     for view, root in views.items():
 
         mapper = fields_map.get(view_map.get(view, view), {})
-        if mapper:
-            cls = HDFDaily.mapped(view, mapper)
-        else:
-            cls = HDFDaily       
-        r[view] = cls(root, Structure, view)
+        r[view] = HDFDaily(root, Structure, view, mapper)
     
     scanner = HDFScanner(r.copy())
     scanner.start()

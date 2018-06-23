@@ -28,7 +28,8 @@ class SingleReader(object):
 
 class SingleMapReader(SingleReader):
 
-    mapper = {}
+    def __init__(self, mapper=None):
+        self.mapper = mapper if isinstance(mapper, dict) else {}
 
     def __call__(self, index=None, fields=None, **filters):
         reversed_mapper = {}

@@ -9,7 +9,8 @@ import os
 
 class LocalSqlite(SingleMapReader):
 
-    def __init__(self, sqlite_file, table, view=""):
+    def __init__(self, sqlite_file, table, view="", mapper=None):
+        super(LocalSqlite, self).__init__(mapper)
         assert os.path.isfile(sqlite_file)
         self.file = sqlite_file
         self.table = table
@@ -56,12 +57,8 @@ def load_conf(dct):
     methods = {}
     
     for key, table in dct.get("table_map", {}).items():
-        if key in fields_map:
-            cls = type(table.replace(".", "_"), (LocalSqlite,), {"mapper": fields_map[key]})
-        else:
-            cls = LocalSqlite
-
-        reader = cls(sqlite_file, table)
+        mapper = fields_map.get(key, {})
+        reader = LocalSqlite(sqlite_file, table, key, mapper)
         methods[key] = reader
         methods.setdefault("predefine", {})[key] = reader.predefine
     return methods
