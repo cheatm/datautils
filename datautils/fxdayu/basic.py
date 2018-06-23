@@ -276,6 +276,9 @@ class DataAPI(DataAPIBase):
             for key, reader in readers.items():
                 self[key] = reader
                 # setattr(self, key, reader)
+            
+        import logging
+        logging.warning("Load methods complete.")
 
 
 from functools import wraps

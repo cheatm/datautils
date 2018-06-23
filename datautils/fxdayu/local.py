@@ -131,16 +131,20 @@ class HDFDaily(SingleMapReader):
     def mapped(cls, tag, mapper):
         return type("%s_HDF" % tag, (cls,), {"mapper": mapper})
 
-    def __init__(self, root, cls):
+    def __init__(self, root, cls, view):
         self.lock = RLock()
         self.cls = cls
         self.root = root
-        self.files = self.gen_files()
+        self.view = view
+        self.refresh()
         self.symbol = self.mapper.get("symbol", "symbol")
         self.date = self.mapper.get("trade_date", "trade_date")
-    
+
     def predefine(self):
-        return set(self.files)
+        p = set()
+        p.update(self.mapper.keys())
+        p.update(self.mapper.values())
+        return p
 
     def gen_files(self):
         root = self.root
@@ -187,11 +191,13 @@ class HDFDaily(SingleMapReader):
         return result.reset_index()
 
     def refresh(self):
-        logging.warning("HDF start refresh")
+        logging.warning("%s | HDF start refresh", self.view)
         self.lock.acquire()
         self.files = self.gen_files()
+        for name in self.files:
+            self.mapper["%s.%s" % (self.view, name)] = name
         self.lock.release()
-        logging.warning("HDF refresh accomplish")
+        logging.warning("%s | HDF refresh accomplish", self.view)
 
 
 class HDFScanner(object):
@@ -310,7 +316,7 @@ def load_hdf(conf):
             cls = HDFDaily.mapped(view, mapper)
         else:
             cls = HDFDaily       
-        r[view] = cls(root, Structure)
+        r[view] = cls(root, Structure, view)
     
     scanner = HDFScanner(r.copy())
     scanner.start()
