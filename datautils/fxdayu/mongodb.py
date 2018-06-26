@@ -21,12 +21,37 @@ import six
 from collections import Iterable
 
 
+class TypeColReader(ColReader):
+
+    _types = {}
+
+    @classmethod
+    def types(cls, name, **kwargs):
+        return type(name, (cls,), {"_types": kwargs})
+
+    def read(self, index=None, fields=None, hint=None, **filters):
+        for key, value in list(filters.items()):
+            if key in self._types:
+                filters[key] = self.change(key, value)
+        return super(TypeColReader, self).read(index, fields, hint, **filters)
+    
+    def change(self, key, value):
+        method = self._types[key]
+        if isinstance(value, str):
+            return method(value)
+        elif isinstance(value, Iterable):
+            return value.__class__(map(method, value))
+        else:
+            return method(value)
+
+
 class AppDBReader(SingleReader):
 
     def __init__(self, db, axis, index):
         self.reader = DBReader(db)
         self.axis = axis
         self.index = index
+        self.db = db
 
     def __call__(self, index=None, fields=None, **filters):
         names, fields, filters = self.input(fields, **filters)
@@ -105,6 +130,8 @@ class FactorReader(SDIReader):
                 data.pop(name)
         return data.sortlevel(1).reset_index()
 
+    def predefine(self):
+        return self.db.collection_names()
 
 class RangeColReader(ColReader):
 
@@ -171,13 +198,15 @@ class DailyDBReader(DailyReader):
             
         dct = self.reader(symbols, "datetime", fields,
                           datetime=(convert2date(start, hour=15), convert2date(end, hour=15)))
+        for value in dct.values():
+            value["trade_status"] = 1
         pn = pd.Panel.from_dict(dct).rename_axis(date2int, 1)
         pn.items.name = "symbol"
         pn.major_axis.name = "trade_date"
         frame =  pn.transpose(2, 1, 0).to_frame(False)
         if isinstance(fields, set) and ("vwap" in fields):
             frame["vwap"] = frame["turnover"] / frame["volume"]
-        frame["trade_status"] = 1
+        frame["trade_status"].fillna(0, inplace=True)
         return frame.reset_index()
 
 
@@ -187,8 +216,24 @@ class BarDBReader(BarReader):
         self.reader = RenameChunkReader(db)
 
     def __call__(self, symbols, trade_date, fields=None):
-        return self.reader(symbols, "datetime", fields, _d=convert2date(trade_date))
+        dct = self.reader(symbols, "datetime", fields, _d=convert2date(trade_date))
+        for symbol, frame in dct.items():
+            frame["code"] = fold(symbol)
+        pn = pd.Panel.from_dict(dct)
+        pn.items.name = "symbol"
+        pn = pn.transpose(2, 1, 0)
+        for item, method in [("time", self.time), ("trade_date", self.date)]:
+            value = list(map(method, pn.major_axis))
+            pn[item] = pd.DataFrame(dict.fromkeys(pn.minor_axis, value), pn.major_axis)
+        return pn.to_frame(False).reset_index(level="symbol")
 
+    @staticmethod
+    def time(dt):
+        return dt.hour*10000+dt.minute*100+dt.second
+
+    @staticmethod
+    def date(dt):
+        return dt.year*10000+dt.month*100+dt.day
 
 class UpdateStatus(SingleReader):
 
@@ -252,17 +297,18 @@ from functools import partial
 
 
 COL_READER_MAP = {
-    "SEC_SUSP": partial(RangeColReader, range_key="date", start_key="susp_date", end_key="resu_date"),
-    "INDEX_CONS": partial(RangeColReader, range_key="date", start_key="in_date", end_key="out_date")
+    "lb.secSusp": partial(RangeColReader, range_key="date", start_key="susp_date", end_key="resu_date"),
+    "lb.indexCons": partial(RangeColReader, range_key="date", start_key="in_date", end_key="out_date"),
+    "lb.secAdjFactor": TypeColReader.types("AdjFactorColReader", trade_date=str)
 }
 
 
 DB_READER_MAP = {
-    "FACTOR": FactorReader,
-    "FXDAYU_FACTOR": FactorReader,
-    "DAILY_INDICATOR": SDIReader,
-    "BAR": BarDBReader,
-    "DAILY": DailyDBReader
+    "factor": FactorReader,
+    "fxdayu.factor": FactorReader,
+    "lb.secDailyIndicator": SDIReader,
+    "bar": BarDBReader,
+    "daily": DailyDBReader
 }
 
 
@@ -274,18 +320,21 @@ def load_conf(dct):
     for view, db_name in dct.get("DB_MAP", {}).items():
         db = client[db_name]
         cls = DB_READER_MAP.get(view, DBReader)
-        readers[view.lower()] = cls(db)
+        reader = cls(db)
+        if hasattr(reader, "predefine"):
+            readers.setdefault("predefine", {})[view] = reader.predefine
+        readers[view] = reader
 
     for view, db_col in dct.get("COL_MAP", {}).items():
         db, col = db_col.split(".", 1)
         collection = client[db][col]
         cls = COL_READER_MAP.get(view, ColReader)
-        readers[view.lower()] = cls(collection)
+        readers[view] = cls(collection)
 
     update_status = dct.get("UPDATE", None)
     if isinstance(update_status, dict):
         readers["update_status"] = UpdateStatus(client,
-                                                readers["trade_cal"],
+                                                readers["jz.secTradeCal"],
                                                 **update_status)
 
     return readers

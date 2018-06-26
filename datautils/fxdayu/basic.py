@@ -277,7 +277,7 @@ class DataAPI(DataAPIBase):
             for key, reader in readers.items():
                 self[key] = reader
                 # setattr(self, key, reader)
-            
+        self["help.predefine"] = self.predefine
         import logging
         logging.warning("Load methods complete.")
 
