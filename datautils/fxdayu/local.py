@@ -38,7 +38,12 @@ class HDFStructure(object):
         for path in files:
             filename = os.path.split(path)[1]
             name = filename[:-4].strip("_")
-            structures[name] = cls(path)
+            try:
+                structure = cls(path)
+            except Exception as e:
+                logging.error("load hdf error | %s | %s", path, e)
+            else:
+                structures[name] = structure
         return structures
         
     def __init__(self, hdf_file):
