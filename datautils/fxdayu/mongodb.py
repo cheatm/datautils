@@ -1,13 +1,7 @@
-from datautils.fxdayu.basic import SingleReader, DailyReader, BarReader
+from datautils.fxdayu.basic import SingleReader, DailyReader, BarReader, SingleMapReader
 from datautils.mongodb.reader import ColReader, DBReader, ChunkDBReader
 from datautils.mongodb import read
 import pandas as pd
-
-
-DBS = ("STOCK_D", "STOCK_H", "STOCK_1M", "FACTOR", "FXDAYU_FACTOR", "DAILY_INDICATOR")
-COLS = ("API_LIST", "API_PARAM", "INST_INFO", "TRADE_CAL", "BALANCE_SHEET", "CASH_FLOW", "FIN_INDICATOR", "INCOME",
-        "INDEX_CONS", "INDEX_WEIGHT_RANGE", "PROFIT_EXPRESS", "S_STATE", "SEC_DIVIDEND", "SEC_INDUSTRY", "SEC_SUSP",
-        "SEC_RESTRICTED", "WIND_FINANCE", "SEC_ADJ_FACTOR")
 
 
 def expand(symbol):
@@ -106,10 +100,18 @@ def convert2date(string, **replace):
         return string
 
 
-class FactorReader(SDIReader):
+class FactorReader(SDIReader, SingleMapReader):
 
-    def __init__(self, db):
+
+    def __init__(self, db, mapper=None):
         AppDBReader.__init__(self, db, "symbol", "datetime")
+        SingleMapReader.__init__(self, mapper)
+    
+    def __call__(self, index=None, fields=None, **filters):
+        return SingleMapReader.__call__(self, index, fields, **filters)
+
+    def read(self, fields=None, **filters):
+        return SDIReader.__call__(self, fields=fields, **filters)
 
     def input(self, fields=None, **filters):
         names, fields, filters = super(FactorReader, self).input(fields, **filters)
@@ -304,8 +306,8 @@ COL_READER_MAP = {
 
 
 DB_READER_MAP = {
-    "factor": FactorReader,
-    "fxdayu.factor": FactorReader,
+    "factor": FactorReader.set_default({"trade_date": "datetime"}, "UqerFactor"),
+    "fxdayu.factor": FactorReader.set_default({"trade_date": "datetime"}, "FxdayuFactor"),
     "lb.secDailyIndicator": SDIReader,
     "bar": BarDBReader,
     "daily": DailyDBReader
@@ -333,9 +335,18 @@ def load_conf(dct):
 
     update_status = dct.get("UPDATE", None)
     if isinstance(update_status, dict):
-        readers["update_status"] = UpdateStatus(client,
+        readers["updateStatus"] = UpdateStatus(client,
                                                 readers["jz.secTradeCal"],
                                                 **update_status)
 
     return readers
 
+
+def main():
+    import json
+    with open(r"D:\jaqsmds\conf\mongodb-conf-local.json") as f:
+        conf = json.load(f)
+    readers = load_conf(conf)
+    r = readers["fxdayu.factor"]
+    
+    print(r(fields=["L010104B"], trade_date=("20180101", "20180131"), symbol=["000001.SZ", "600000.SH"]))

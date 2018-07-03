@@ -28,8 +28,17 @@ class SingleReader(object):
 
 class SingleMapReader(SingleReader):
 
+    DEFAULT = {}
+
+    @classmethod
+    def set_default(cls, default, name=None):
+        assert isinstance(default, dict)
+        if name is None:
+            name = "SMR_%s" % id(default)
+        return type(name, (cls,), {"DEFAULT": default})
+
     def __init__(self, mapper=None):
-        self.mapper = mapper if isinstance(mapper, dict) else {}
+        self.mapper = mapper if isinstance(mapper, dict) else self.DEFAULT.copy()
 
     def __call__(self, index=None, fields=None, **filters):
         reversed_mapper = {}
