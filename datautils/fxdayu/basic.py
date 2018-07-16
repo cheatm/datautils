@@ -129,13 +129,9 @@ class Predefine(SingleReader):
 
     def iter_call(self):
         for name, method in self.methods.items():
-            try:
-                fields = method()
-            except:
-                pass
-            else:
-                for field in fields:
-                    yield name, field
+            fields = method()
+            for field in fields:
+                yield name, field
 
 
 view_map = {
