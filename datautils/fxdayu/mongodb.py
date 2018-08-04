@@ -307,7 +307,7 @@ COL_READER_MAP = {
 
 DB_READER_MAP = {
     "factor": FactorReader.set_default({"trade_date": "datetime"}, "UqerFactor"),
-    "fxdayu.factor": FactorReader.set_default({"trade_date": "datetime"}, "FxdayuFactor"),
+    "dyfactors": FactorReader.set_default({"trade_date": "datetime"}, "FxdayuFactor"),
     "lb.secDailyIndicator": SDIReader,
     "bar": BarDBReader,
     "daily": DailyDBReader
