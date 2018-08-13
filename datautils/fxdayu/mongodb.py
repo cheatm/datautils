@@ -220,8 +220,8 @@ class BarDBReader(BarReader):
     def __call__(self, symbols, trade_date, fields=None):
         dct = self.reader(symbols, "datetime", fields, _d=convert2date(trade_date))
         for symbol, frame in dct.items():
-            frame["code"] = fold(symbol)
-        pn = pd.Panel.from_dict(dct)
+            frame["code"] = fold(symbol)[:6]
+        pn = pd.Panel.from_dict(dct).rename_axis(fold)
         pn.items.name = "symbol"
         pn = pn.transpose(2, 1, 0)
         for item, method in [("time", self.time), ("trade_date", self.date)]:
@@ -341,13 +341,3 @@ def load_conf(dct):
                                                 **update_status)
 
     return readers
-
-
-def main():
-    import json
-    with open(r"D:\jaqsmds\conf\mongodb-conf-local.json") as f:
-        conf = json.load(f)
-    readers = load_conf(conf)
-    r = readers["fxdayu.factor"]
-    
-    print(r(fields=["L010104B"], trade_date=("20180101", "20180131"), symbol=["000001.SZ", "600000.SH"]))
